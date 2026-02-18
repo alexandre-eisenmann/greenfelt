@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import * as CANNON from "cannon-es"
 import * as THREE from "three"
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js"
@@ -7,16 +7,21 @@ import { DiceAudio } from "./diceAudio"
 type DieEntity = {
   mesh: THREE.Mesh
   body: CANNON.Body
+  locked: boolean
 }
 
-const DICE_COUNT = 5
+type DiceThrowProps = {
+  diceCount?: number
+  maxAttempts?: number
+}
+
 const DIE_SIZE = 1.36
 const DIE_HALF = DIE_SIZE / 2
 
 const CAMERA_HALF_HEIGHT = 6.8
 const WALL_THICKNESS = 0.9
 const WALL_HEIGHT = 8
-const TABLE_GREEN = 0x146b44
+const TABLE_GREEN = 0x1a7a4a
 
 const FACE_VALUE_BY_MATERIAL_INDEX = [3, 4, 1, 6, 2, 5]
 
@@ -54,18 +59,61 @@ const PIP_LAYOUTS: Record<number, Array<[number, number]>> = {
   ],
 }
 
-export function DiceThrowRenderer() {
+const UNLOCKED_COLOR = 0xffffff
+const LOCKED_COLOR = 0xf28b82
+
+export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3 }: DiceThrowProps) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const throwDiceRef = useRef<() => void>(() => {})
+  const parkDiceRef = useRef<() => void>(() => {})
   const rollingRef = useRef(false)
-  const [isRolling, setIsRolling] = useState(true)
+  const [isRolling, setIsRolling] = useState(false)
+  const [results, setResults] = useState<number[]>([])
+  // attempt = 0 means no throws yet, 1 = first throw done, etc.
+  const [attempt, setAttempt] = useState(0)
+  const [locked, setLocked] = useState<boolean[]>(() => Array(diceCount).fill(false))
+  const lockedRef = useRef(locked)
+  lockedRef.current = locked
+  const attemptRef = useRef(attempt)
+  attemptRef.current = attempt
+
+  const diceRef = useRef<DieEntity[]>([])
+
+  const toggleLock = useCallback((index: number) => {
+    if (rollingRef.current) return
+    // Can only lock between throws: at least 1 throw done, and not yet at max
+    if (attemptRef.current < 1 || attemptRef.current >= maxAttempts) return
+
+    setLocked((prev) => {
+      const next = [...prev]
+      next[index] = !next[index]
+      const die = diceRef.current[index]
+      if (die) {
+        const materials = die.mesh.material as THREE.MeshStandardMaterial[]
+        const color = next[index] ? LOCKED_COLOR : UNLOCKED_COLOR
+        materials.forEach((m) => m.color.set(color))
+      }
+      return next
+    })
+  }, [maxAttempts])
+
+  const newTurn = useCallback(() => {
+    setAttempt(0)
+    setResults([])
+    setLocked(Array(diceCount).fill(false))
+    diceRef.current.forEach((die) => {
+      const materials = die.mesh.material as THREE.MeshStandardMaterial[]
+      materials.forEach((m) => m.color.set(UNLOCKED_COLOR))
+    })
+    parkDiceRef.current()
+  }, [diceCount])
 
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
 
     const scene = new THREE.Scene()
-    scene.background = null
+    scene.background = new THREE.Color(TABLE_GREEN)
 
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 80)
     camera.position.set(0, 14, 0)
@@ -75,8 +123,7 @@ export function DiceThrowRenderer() {
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.outputColorSpace = THREE.SRGBColorSpace
-    renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 1.04
+    renderer.toneMapping = THREE.NoToneMapping
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     renderer.domElement.style.width = "100%"
@@ -84,25 +131,21 @@ export function DiceThrowRenderer() {
     renderer.domElement.style.display = "block"
     host.appendChild(renderer.domElement)
 
-    const ambient = new THREE.HemisphereLight(0xf4f9ff, 0x16302a, 0.58)
+    const ambient = new THREE.AmbientLight(0xffffff, 0.85)
     scene.add(ambient)
 
-    const topLight = new THREE.DirectionalLight(0xffffff, 0.72)
-    topLight.position.set(0, 18, 0)
+    const topLight = new THREE.DirectionalLight(0xffffff, 1.1)
+    topLight.position.set(3, 18, -2)
     topLight.castShadow = true
     topLight.shadow.mapSize.width = 2048
     topLight.shadow.mapSize.height = 2048
     topLight.shadow.camera.near = 1
-    topLight.shadow.camera.far = 35
-    topLight.shadow.camera.left = -10
-    topLight.shadow.camera.right = 10
-    topLight.shadow.camera.top = 10
-    topLight.shadow.camera.bottom = -10
+    topLight.shadow.camera.far = 40
+    topLight.shadow.camera.left = -30
+    topLight.shadow.camera.right = 30
+    topLight.shadow.camera.top = 20
+    topLight.shadow.camera.bottom = -20
     scene.add(topLight)
-
-    const fill = new THREE.DirectionalLight(0x94b7a9, 0.16)
-    fill.position.set(-4, 10, 4)
-    scene.add(fill)
 
     const tableMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(1, 1),
@@ -148,21 +191,22 @@ export function DiceThrowRenderer() {
     world.addBody(floorBody)
 
     const diceGeometry = new RoundedBoxGeometry(DIE_SIZE, DIE_SIZE, DIE_SIZE, 6, 0.16)
-    const diceMaterials = FACE_VALUE_BY_MATERIAL_INDEX.map((value) =>
-      new THREE.MeshStandardMaterial({
-        map: createFaceTexture(value),
-        color: 0xf6f8fb,
-        roughness: 0.9,
-        metalness: 0.0,
-        envMapIntensity: 0.0,
-      }),
-    )
 
     const dice: DieEntity[] = []
-    for (let i = 0; i < DICE_COUNT; i += 1) {
-      const mesh = new THREE.Mesh(diceGeometry, diceMaterials)
+    for (let i = 0; i < diceCount; i += 1) {
+      const dieMaterials = FACE_VALUE_BY_MATERIAL_INDEX.map((value) =>
+        new THREE.MeshStandardMaterial({
+          map: createFaceTexture(value),
+          color: UNLOCKED_COLOR,
+          roughness: 0.38,
+          metalness: 0.02,
+        }),
+      )
+
+      const mesh = new THREE.Mesh(diceGeometry, dieMaterials)
       mesh.castShadow = true
       mesh.receiveShadow = true
+      mesh.userData.dieIndex = i
       scene.add(mesh)
 
       const body = new CANNON.Body({
@@ -177,8 +221,9 @@ export function DiceThrowRenderer() {
       body.allowSleep = true
       world.addBody(body)
 
-      dice.push({ mesh, body })
+      dice.push({ mesh, body, locked: false })
     }
+    diceRef.current = dice
 
     // ── collision audio ──────────────────────────────────────────
     const audio = new DiceAudio()
@@ -196,6 +241,29 @@ export function DiceThrowRenderer() {
         }
       })
     })
+
+    // ── click to lock/unlock ─────────────────────────────────────
+    const raycaster = new THREE.Raycaster()
+    const pointer = new THREE.Vector2()
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (rollingRef.current) return
+      const rect = renderer.domElement.getBoundingClientRect()
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+      raycaster.setFromCamera(pointer, camera)
+
+      const meshes = dice.map((d) => d.mesh)
+      const intersects = raycaster.intersectObjects(meshes, false)
+      if (intersects.length > 0) {
+        const hit = intersects[0].object
+        const dieIndex = hit.userData.dieIndex as number
+        if (dieIndex !== undefined) {
+          toggleLock(dieIndex)
+        }
+      }
+    }
+    renderer.domElement.addEventListener("pointerdown", onPointerDown)
 
     let bounds = {
       minX: -6,
@@ -244,6 +312,31 @@ export function DiceThrowRenderer() {
         world.addBody(wall)
         wallBodies.push(wall)
       })
+
+      // Corner bumpers — angled at 45° to deflect dice out of corners
+      const bumperSize = DIE_SIZE * 1.8
+      const bumperShape = new CANNON.Box(
+        new CANNON.Vec3(bumperSize / 2, WALL_HEIGHT / 2, WALL_THICKNESS / 2),
+      )
+      const hw = width / 2
+      const hd = depth / 2
+      const corners: { x: number; z: number; angle: number }[] = [
+        { x: -hw, z: -hd, angle: Math.PI / 4 },
+        { x: hw, z: -hd, angle: -Math.PI / 4 },
+        { x: -hw, z: hd, angle: -Math.PI / 4 },
+        { x: hw, z: hd, angle: Math.PI / 4 },
+      ]
+      corners.forEach(({ x, z, angle }) => {
+        const bumper = new CANNON.Body({
+          type: CANNON.Body.STATIC,
+          shape: bumperShape,
+          material: tableMaterial,
+        })
+        bumper.position.set(x, WALL_HEIGHT / 2, z)
+        bumper.quaternion.setFromEuler(0, angle, 0)
+        world.addBody(bumper)
+        wallBodies.push(bumper)
+      })
     }
 
     const resize = () => {
@@ -277,6 +370,7 @@ export function DiceThrowRenderer() {
       rebuildWalls(fullWidth, fullDepth)
 
       renderer.setSize(widthPx, heightPx, true)
+      renderer.render(scene, camera)
     }
 
     const observer = new ResizeObserver(resize)
@@ -285,22 +379,50 @@ export function DiceThrowRenderer() {
 
     let settledFor = 0
 
+    // Park all dice below the table (hidden)
+    const parkDice = () => {
+      dice.forEach((die) => {
+        die.body.type = CANNON.Body.STATIC
+        die.body.velocity.setZero()
+        die.body.angularVelocity.setZero()
+        die.body.position.set(0, -10, 0)
+        die.mesh.position.set(0, -10, 0)
+      })
+    }
+
     const throwDice = () => {
       if (rollingRef.current) return
+      if (attemptRef.current >= maxAttempts) return
+
       rollingRef.current = true
       setIsRolling(true)
       settledFor = 0
 
+      const currentLocked = lockedRef.current
+      const isFirstThrow = attemptRef.current === 0
       const startX = bounds.minX + DIE_SIZE * 0.8
+
+      let unlockedIndex = 0
       dice.forEach((die, index) => {
+        // On first throw, ignore locks (throw everything)
+        if (!isFirstThrow && currentLocked[index]) {
+          die.body.type = CANNON.Body.STATIC
+          die.body.velocity.setZero()
+          die.body.angularVelocity.setZero()
+          return
+        }
+
+        die.body.type = CANNON.Body.DYNAMIC
+        die.body.mass = 1
+        die.body.updateMassProperties()
         die.body.wakeUp()
         die.body.velocity.setZero()
         die.body.angularVelocity.setZero()
         die.body.force.setZero()
         die.body.torque.setZero()
 
-        const spawnX = startX + index * 0.56 + randomRange(-0.1, 0.1)
-        const spawnY = 4 + index * 0.22
+        const spawnX = startX + unlockedIndex * 0.56 + randomRange(-0.1, 0.1)
+        const spawnY = 4 + unlockedIndex * 0.22
         const spawnZ = randomRange(-bounds.depth * 0.25, bounds.depth * 0.25)
         die.body.position.set(spawnX, spawnY, spawnZ)
 
@@ -324,11 +446,15 @@ export function DiceThrowRenderer() {
           randomRange(-0.2, 0.2),
         )
         die.body.applyImpulse(impulse, impulseOffset)
+        unlockedIndex++
       })
     }
 
     throwDiceRef.current = throwDice
-    throwDice()
+    parkDiceRef.current = parkDice
+
+    // Start with an empty table
+    parkDice()
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.code !== "Space") return
@@ -363,7 +489,9 @@ export function DiceThrowRenderer() {
       })
 
       if (rollingRef.current) {
-        const allStable = dice.every((die) => {
+        const currentLocked = lockedRef.current
+        const allStable = dice.every((die, i) => {
+          if (currentLocked[i]) return true
           if (die.body.sleepState === CANNON.Body.SLEEPING) return true
           const linearStill = die.body.velocity.lengthSquared() < 0.02
           const angularStill = die.body.angularVelocity.lengthSquared() < 0.03
@@ -375,6 +503,8 @@ export function DiceThrowRenderer() {
           if (settledFor > 0.26) {
             rollingRef.current = false
             setIsRolling(false)
+            setResults(dice.map((die) => readTopFace(die.body)))
+            setAttempt((prev) => prev + 1) // 0→1 after first, 1→2 after second, etc.
           }
         } else {
           settledFor = 0
@@ -391,6 +521,7 @@ export function DiceThrowRenderer() {
       window.cancelAnimationFrame(raf)
       observer.disconnect()
       window.removeEventListener("keydown", onKeyDown)
+      renderer.domElement.removeEventListener("pointerdown", onPointerDown)
       audio.dispose()
       host.removeChild(renderer.domElement)
 
@@ -406,26 +537,73 @@ export function DiceThrowRenderer() {
       scene.remove(tableMesh)
 
       diceGeometry.dispose()
-      diceMaterials.forEach((material) => {
-        material.map?.dispose()
-        material.dispose()
+      dice.forEach((die) => {
+        ;(die.mesh.material as THREE.MeshStandardMaterial[]).forEach((m) => {
+          m.map?.dispose()
+          m.dispose()
+        })
       })
 
       renderer.dispose()
     }
-  }, [])
+  }, [diceCount, maxAttempts, toggleLock])
+
+  const total = results.reduce((sum, v) => sum + v, 0)
+  const turnOver = attempt >= maxAttempts && !isRolling
+  const canThrow = !isRolling && attempt < maxAttempts
+  const canLock = !isRolling && attempt >= 1 && attempt < maxAttempts
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-3xl bg-[#146b44]">
-      <div ref={hostRef} className="h-full w-full" />
+    <div className="flex h-full w-full flex-col">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-3xl bg-[#1a7a4a]">
+        <div ref={hostRef} className="h-full w-full" />
+      </div>
 
-      <button
-        disabled={isRolling}
-        onClick={() => throwDiceRef.current()}
-        className="absolute bottom-4 right-4 rounded-full border border-slate-300 bg-white/90 px-4 py-2 text-xs uppercase tracking-[0.12em] text-slate-700 shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
-      >
-        {isRolling ? "Rolling..." : "Throw Dice"}
-      </button>
+      <div className="flex items-center justify-between px-2 py-3" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="flex items-center gap-3">
+          {results.length > 0 && !isRolling ? (
+            <>
+              <div className="flex items-center gap-1.5">
+                {results.map((value, i) => (
+                  <span
+                    key={i}
+                    onClick={() => canLock && toggleLock(i)}
+                    className={`grid h-8 w-8 select-none place-items-center rounded-lg border text-sm font-bold shadow-sm transition-colors ${
+                      locked[i]
+                        ? "border-red-400 bg-red-100 text-red-800"
+                        : "border-slate-300 bg-white text-slate-800"
+                    } ${canLock ? "cursor-pointer hover:border-slate-400" : ""}`}
+                  >
+                    {value}
+                  </span>
+                ))}
+              </div>
+              <span className="text-sm font-medium text-slate-400">=</span>
+              <span className="text-lg font-bold text-slate-800">{total}</span>
+            </>
+          ) : (
+            <span className="text-sm font-medium text-slate-400">
+              {isRolling ? "Rolling..." : ""}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-4">
+          {!isRolling && attempt > 0 && !turnOver && (
+            <span className="text-sm font-semibold text-slate-400">
+              {attempt} of {maxAttempts}
+            </span>
+          )}
+
+          <button
+            disabled={isRolling}
+            onClick={() => turnOver ? newTurn() : throwDiceRef.current()}
+            className="w-20 rounded-full border border-slate-300 bg-white/90 py-2 text-center text-xs font-bold uppercase tracking-widest text-slate-700 shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            {turnOver ? "Reset" : "Play"}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -442,16 +620,16 @@ function createFaceTexture(value: number): THREE.CanvasTexture {
     return fallback
   }
 
-  context.fillStyle = "#f6f8fb"
+  context.fillStyle = "#ffffff"
   context.fillRect(0, 0, canvas.width, canvas.height)
 
-  context.lineWidth = 4
-  context.strokeStyle = "#d3dce8"
+  context.lineWidth = 3
+  context.strokeStyle = "#e2e8f0"
   context.strokeRect(4, 4, canvas.width - 8, canvas.height - 8)
 
-  const pipRadius = 22
+  const pipRadius = 26
   const pips = PIP_LAYOUTS[value]
-  context.fillStyle = "#0f172a"
+  context.fillStyle = "#000000"
   pips.forEach(([xNorm, yNorm]) => {
     const x = canvas.width / 2 + xNorm * 112
     const y = canvas.height / 2 + yNorm * 112
@@ -471,6 +649,33 @@ function createFaceTexture(value: number): THREE.CanvasTexture {
 
 function randomRange(min: number, max: number): number {
   return min + Math.random() * (max - min)
+}
+
+/** Read the top face value of a settled die by checking which face normal points most upward. */
+function readTopFace(body: CANNON.Body): number {
+  const faceNormals = [
+    new CANNON.Vec3(1, 0, 0),
+    new CANNON.Vec3(-1, 0, 0),
+    new CANNON.Vec3(0, 1, 0),
+    new CANNON.Vec3(0, -1, 0),
+    new CANNON.Vec3(0, 0, 1),
+    new CANNON.Vec3(0, 0, -1),
+  ]
+  const faceValues = FACE_VALUE_BY_MATERIAL_INDEX
+
+  let bestDot = -Infinity
+  let bestValue = 1
+  const worldNormal = new CANNON.Vec3()
+
+  for (let i = 0; i < 6; i++) {
+    body.quaternion.vmult(faceNormals[i], worldNormal)
+    if (worldNormal.y > bestDot) {
+      bestDot = worldNormal.y
+      bestValue = faceValues[i]
+    }
+  }
+
+  return bestValue
 }
 
 function keepBodyInside(
