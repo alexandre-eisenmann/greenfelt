@@ -3,12 +3,14 @@ import { useCallback, useMemo, useState } from "react"
 import {
   PLAYABLE_ROWS,
   YamScorecard,
+  computeColumnTotals,
   type ColumnId,
   type Placement,
   type RowId,
   type YamSheet,
 } from "./components/YamScorecard"
 import { DiceThrowRenderer } from "./components/renderers/three/DiceThrowRenderer"
+import { GameInfoPanel } from "./components/GameInfoPanel"
 const COLUMN_ORDER: ColumnId[] = ["down", "up", "desordem", "seco"]
 const DOWN_ORDER: RowId[] = [...PLAYABLE_ROWS]
 const UP_ORDER: RowId[] = [...PLAYABLE_ROWS].reverse()
@@ -69,12 +71,7 @@ function App() {
   )
 
   const totalScore = useMemo(() => {
-    return COLUMN_ORDER.reduce((sum, columnId) => {
-      return (
-        sum +
-        PLAYABLE_ROWS.reduce((columnSum, rowId) => columnSum + (sheet[columnId][rowId] ?? 0), 0)
-      )
-    }, 0)
+    return COLUMN_ORDER.reduce((sum, columnId) => sum + computeColumnTotals(sheet[columnId]).combined, 0)
   }, [sheet])
 
   const handleDiceResult = useCallback((result: RollResult) => {
@@ -132,9 +129,19 @@ function App() {
   }, [])
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(140deg,#f5f7fb_0%,#ebf0f7_50%,#e1e8f2_100%)] px-6 py-8 sm:px-10">
-      <section className="mx-auto flex w-full max-w-[1760px] flex-col gap-6 lg:flex-row lg:items-start">
-        <div className="min-w-0 lg:shrink-0">
+    <main className="min-h-screen bg-[linear-gradient(140deg,#f5f7fb_0%,#ebf0f7_50%,#e1e8f2_100%)] px-4 py-6 sm:px-8 sm:py-8">
+      <section className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 lg:flex-row lg:items-start lg:gap-8">
+
+        {/* Left column: info panel + scorecard
+            Mobile: order-2 → appears below the dice
+            Desktop: order-1 → left side */}
+        <div className="order-2 flex flex-col gap-5 lg:order-1 lg:shrink-0">
+          <GameInfoPanel
+            sheet={sheet}
+            totalScore={totalScore}
+            rollResult={rollResult}
+            maxAttempts={3}
+          />
           <YamScorecard
             sheet={sheet}
             openCells={openCells}
@@ -143,20 +150,37 @@ function App() {
             onCellClick={handleCellClick}
           />
         </div>
-        <div className="min-w-0 flex-1 lg:sticky lg:top-8">
+
+        {/* Right column: dice / game-over
+            Mobile: order-1 → appears at the top
+            Desktop: order-2 → right side, sticky */}
+        <div className="order-1 min-w-0 flex-1 lg:order-2 lg:sticky lg:top-8">
           {gameOver ? (
-            <div className="flex h-[34vh] min-h-[280px] flex-col items-center justify-center gap-5 rounded-3xl border-2 border-slate-400 bg-[#eef2f7]" style={{ fontFamily: "'Inter', sans-serif" }}>
-              <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">Game Over</p>
-              <p className="text-5xl font-bold text-slate-800">{totalScore}</p>
+            <div
+              className="flex min-h-[320px] flex-col items-center justify-center gap-6 rounded-3xl border border-[#ccc8c0] bg-[#f7f4ef] px-8 py-10 lg:h-[60vh]"
+              style={{ fontFamily: "'Inter', sans-serif" }}
+            >
+              <p
+                className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#8a8070]"
+              >
+                Game Over
+              </p>
+              <p
+                className="text-7xl font-bold leading-none text-[#2d2820]"
+                style={{ fontFamily: "'Kalam', cursive" }}
+              >
+                {totalScore}
+              </p>
+              <p className="text-sm text-[#8a8070]">final score</p>
               <button
                 onClick={restartGame}
-                className="mt-2 rounded-full border border-slate-300 bg-white px-8 py-2.5 text-xs font-bold uppercase tracking-widest text-slate-700 shadow-sm transition hover:bg-slate-50"
+                className="mt-2 rounded-full border border-[#ccc8c0] bg-white px-8 py-2.5 text-xs font-bold uppercase tracking-widest text-[#5a5448] shadow-sm transition hover:bg-[#f0ece4]"
               >
                 New Game
               </button>
             </div>
           ) : (
-            <div className="h-[42vh] min-h-[300px] min-w-0 lg:h-[56vh]">
+            <div className="h-[46vh] min-h-[280px] min-w-0 lg:h-[62vh]">
               <DiceThrowRenderer
                 diceCount={5}
                 maxAttempts={3}
@@ -167,6 +191,7 @@ function App() {
             </div>
           )}
         </div>
+
       </section>
     </main>
   )
