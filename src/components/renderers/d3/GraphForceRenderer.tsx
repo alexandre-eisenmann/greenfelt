@@ -25,21 +25,50 @@ type Props = {
   nodes: GraphNode[]
   edges: GraphEdge[]
   openNodeIds?: Iterable<string>
+  nodeValues?: Record<string, number | null>
+  clickable?: boolean
+  onNodeClick?: (nodeId: string) => void
+  pendingNodeId?: string | null
+  pendingValue?: number | null
 }
 
-const WIDTH = 980
-const HEIGHT = 620
+const WIDTH = 1400
+const HEIGHT = 900
+const NODE_R = 34
+const GLOW_R = 46
 
-export function GraphForceRenderer({ nodes, edges, openNodeIds = [] }: Props) {
+export function GraphForceRenderer({
+  nodes,
+  edges,
+  openNodeIds = [],
+  nodeValues = {},
+  clickable = false,
+  onNodeClick,
+  pendingNodeId = null,
+  pendingValue = null,
+}: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null)
+  const onNodeClickRef = useRef(onNodeClick)
+  onNodeClickRef.current = onNodeClick
+  const clickableRef = useRef(clickable)
+  clickableRef.current = clickable
 
+  // Stable graph structure — only recompute when nodes/edges change
   const graphData = useMemo(() => {
     const simNodes: SimNode[] = nodes.map((n) => ({ ...n }))
     const simEdges: SimEdge[] = edges.map((e) => ({ ...e }))
-    const openNodeSet = new Set(openNodeIds)
-    return { simNodes, simEdges, openNodeSet }
-  }, [nodes, edges, openNodeIds])
+    return { simNodes, simEdges }
+  }, [nodes, edges])
 
+  // Refs for dynamic visual state (don't trigger simulation restart)
+  const nodeValuesRef = useRef(nodeValues)
+  nodeValuesRef.current = nodeValues
+  const openNodeSetRef = useRef(new Set<string>())
+  openNodeSetRef.current = new Set(openNodeIds)
+  const pendingNodeIdRef = useRef(pendingNodeId)
+  pendingNodeIdRef.current = pendingNodeId
+
+  // Create simulation once when graph structure changes
   useEffect(() => {
     const svgElement = svgRef.current
     if (!svgElement) return
@@ -55,15 +84,9 @@ export function GraphForceRenderer({ nodes, edges, openNodeIds = [] }: Props) {
       .selectAll("line")
       .data(graphData.simEdges)
       .join("line")
-      .attr("stroke", "#93a4bb")
-      .attr("stroke-width", 1.35)
-      .attr("stroke-opacity", (d: SimEdge) => {
-        const sourceId = typeof d.source === "string" ? d.source : d.source.id
-        const targetId = typeof d.target === "string" ? d.target : d.target.id
-        const touchesOpen =
-          graphData.openNodeSet.has(sourceId) || graphData.openNodeSet.has(targetId)
-        return touchesOpen ? 0.58 : 0.22
-      })
+      .attr("stroke", "#000000")
+      .attr("stroke-width", 4)
+      .attr("stroke-opacity", 1)
       .attr("stroke-linecap", "round")
 
     const nodeLayer = stage
@@ -72,43 +95,61 @@ export function GraphForceRenderer({ nodes, edges, openNodeIds = [] }: Props) {
       .selectAll("g")
       .data(graphData.simNodes)
       .join("g")
+      .attr("cursor", "default")
 
+    // Glow ring
     nodeLayer
       .append("circle")
-      .attr("r", (d: SimNode) => (graphData.openNodeSet.has(d.id) ? 23 : 0))
+      .attr("class", "glow")
+      .attr("r", 0)
       .attr("fill", "#7aa3ef")
       .attr("fill-opacity", 0.18)
 
+    // Main circle
     nodeLayer
       .append("circle")
-      .attr("r", 16)
-      .attr("fill", (d: SimNode) => (graphData.openNodeSet.has(d.id) ? "#d6e4ff" : "#c8ced7"))
-      .attr("fill-opacity", (d: SimNode) => (graphData.openNodeSet.has(d.id) ? 0.98 : 0.76))
-      .attr("stroke", (d: SimNode) => (graphData.openNodeSet.has(d.id) ? "#27446f" : "#8e99ab"))
-      .attr("stroke-opacity", (d: SimNode) => (graphData.openNodeSet.has(d.id) ? 0.82 : 0.62))
-      .attr("stroke-width", 1.1)
+      .attr("class", "main")
+      .attr("r", NODE_R)
+      .attr("fill", "#e8e0d5")
+      .attr("fill-opacity", 1)
+      .attr("stroke", "#8a7d6b")
+      .attr("stroke-opacity", 1)
+      .attr("stroke-width", 2.5)
+      .attr("stroke-dasharray", "none")
 
+    // Value text
     nodeLayer
       .append("text")
-      .text((d: SimNode) => d.id.replace(/^N/, ""))
+      .attr("class", "value-label")
+      .text("")
       .attr("text-anchor", "middle")
       .attr("dominant-baseline", "central")
-      .attr("font-size", "11px")
-      .attr("font-weight", (d: SimNode) => (graphData.openNodeSet.has(d.id) ? 620 : 520))
-      .attr("letter-spacing", "0.03em")
-      .attr("fill", (d: SimNode) => (graphData.openNodeSet.has(d.id) ? "#182841" : "#5f6c7f"))
+      .attr("font-size", "24px")
+      .attr("font-weight", 700)
+      .attr("font-family", "'Inter', sans-serif")
+      .attr("font-variant-numeric", "tabular-nums")
+      .attr("letter-spacing", "0.02em")
+      .attr("fill", "#2d3748")
+      .attr("pointer-events", "none")
+
+    // Click handler
+    nodeLayer.on("click", (_event: PointerEvent, d: SimNode) => {
+      if (!clickableRef.current) return
+      if (!openNodeSetRef.current.has(d.id)) return
+      onNodeClickRef.current?.(d.id)
+    })
 
     const simulation = forceSimulation(graphData.simNodes)
       .force(
         "link",
         forceLink<SimNode, SimEdge>(graphData.simEdges)
           .id((d: SimNode) => d.id)
-          .distance(64)
-          .strength(0.72),
+          .distance(160)
+          .strength(0.65),
       )
-      .force("charge", forceManyBody().strength(-240))
+      .force("charge", forceManyBody().strength(-800))
       .force("center", forceCenter(WIDTH / 2, HEIGHT / 2))
-      .force("collide", forceCollide(24))
+      .force("collide", forceCollide(NODE_R + 10))
       .alpha(1)
       .alphaDecay(0.035)
       .on("tick", () => {
@@ -144,18 +185,66 @@ export function GraphForceRenderer({ nodes, edges, openNodeIds = [] }: Props) {
     }
   }, [graphData])
 
+  // Update visual state reactively without restarting simulation
+  useEffect(() => {
+    const svgElement = svgRef.current
+    if (!svgElement) return
+    const svg = select(svgElement)
+    const openSet = new Set(openNodeIds)
+
+    svg.selectAll<SVGGElement, SimNode>("g.nodes > g")
+      .attr("cursor", (d) => (openSet.has(d.id) && clickable ? "pointer" : "default"))
+
+    svg.selectAll<SVGCircleElement, SimNode>("circle.glow")
+      .attr("r", (d) => {
+        if (d.id === pendingNodeId) return GLOW_R
+        return openSet.has(d.id) ? GLOW_R : 0
+      })
+      .attr("fill", (d) => {
+        if (d.id === pendingNodeId) return "#4caf50"
+        return clickable && openSet.size > 0 ? "#43a047" : "#5c8abf"
+      })
+      .attr("fill-opacity", (d) => {
+        if (d.id === pendingNodeId) return 0.4
+        return clickable && openSet.size > 0 ? 0.35 : 0.25
+      })
+
+    svg.selectAll<SVGCircleElement, SimNode>("circle.main")
+      .attr("fill", (d) => {
+        if (d.id === pendingNodeId) return "#c8e6c9"
+        const val = nodeValues[d.id]
+        if (val != null) return "#fff8ef"
+        if (openSet.has(d.id)) return clickable ? "#a5d6a7" : "#bbdefb"
+        return "#e8e0d5"
+      })
+      .attr("fill-opacity", 1)
+      .attr("stroke", (d) => {
+        if (d.id === pendingNodeId) return "#2e7d32"
+        const val = nodeValues[d.id]
+        if (val != null) return "#8a7d6b"
+        if (openSet.has(d.id)) return clickable ? "#2e7d32" : "#1565c0"
+        return "#8a7d6b"
+      })
+      .attr("stroke-opacity", 1)
+      .attr("stroke-width", (d) => (d.id === pendingNodeId ? 3 : 2.5))
+      .attr("stroke-dasharray", (d) => (d.id === pendingNodeId ? "6 4" : "none"))
+
+    svg.selectAll<SVGTextElement, SimNode>("text.value-label")
+      .text((d) => {
+        if (d.id === pendingNodeId && pendingValue != null) return String(pendingValue)
+        const val = nodeValues[d.id]
+        return val != null ? String(val) : ""
+      })
+      .attr("fill", (d) => (d.id === pendingNodeId ? "#1b5e20" : "#1a1a2e"))
+
+    // Update edge styling
+    svg.selectAll<SVGLineElement, SimEdge>("g.edges > line")
+      .attr("stroke", "#000000")
+      .attr("stroke-opacity", 1)
+  }, [nodeValues, clickable, openNodeIds, pendingNodeId, pendingValue])
+
   return (
-    <div className="relative h-full w-full rounded-3xl border border-slate-300/45 bg-[radial-gradient(circle_at_20%_20%,#f7f9fc_0%,#eef3f8_38%,#e2e9f2_100%)] shadow-[0_20px_80px_rgba(20,35,60,0.17)]">
-      <div className="pointer-events-none absolute left-4 top-4 rounded-xl border border-white/70 bg-white/60 px-3 py-2 text-[11px] uppercase tracking-[0.12em] text-slate-600 backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#97b8f5]" />
-          Open
-        </div>
-        <div className="mt-1 flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#b9bec7]" />
-          Closed
-        </div>
-      </div>
+    <div className="relative h-full w-full rounded-3xl border-2 border-slate-400 bg-[#eef2f7] shadow-[0_8px_40px_rgba(20,35,60,0.22)]">
       <svg ref={svgRef} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="h-full w-full" />
     </div>
   )

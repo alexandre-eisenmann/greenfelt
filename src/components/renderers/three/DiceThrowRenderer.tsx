@@ -13,6 +13,9 @@ type DieEntity = {
 type DiceThrowProps = {
   diceCount?: number
   maxAttempts?: number
+  onDiceResult?: (result: { total: number; values: number[]; attempt: number }) => void
+  hasPendingPlacement?: boolean
+  onCommitPlacement?: () => void
 }
 
 const DIE_SIZE = 1.36
@@ -62,7 +65,7 @@ const PIP_LAYOUTS: Record<number, Array<[number, number]>> = {
 const UNLOCKED_COLOR = 0xffffff
 const LOCKED_COLOR = 0xf28b82
 
-export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3 }: DiceThrowProps) {
+export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult, hasPendingPlacement = false, onCommitPlacement }: DiceThrowProps) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const throwDiceRef = useRef<() => void>(() => {})
   const parkDiceRef = useRef<() => void>(() => {})
@@ -78,6 +81,8 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3 }: DiceThrowP
   attemptRef.current = attempt
 
   const diceRef = useRef<DieEntity[]>([])
+  const onDiceResultRef = useRef(onDiceResult)
+  onDiceResultRef.current = onDiceResult
 
   const toggleLock = useCallback((index: number) => {
     if (rollingRef.current) return
@@ -107,6 +112,29 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3 }: DiceThrowP
     })
     parkDiceRef.current()
   }, [diceCount])
+
+  const onCommitPlacementRef = useRef(onCommitPlacement)
+  onCommitPlacementRef.current = onCommitPlacement
+
+  const commitAndThrow = useCallback(() => {
+    onCommitPlacementRef.current?.()
+    setAttempt(0)
+    attemptRef.current = 0
+    setResults([])
+    const allUnlocked = Array(diceCount).fill(false)
+    setLocked(allUnlocked)
+    lockedRef.current = allUnlocked
+    diceRef.current.forEach((die) => {
+      const materials = die.mesh.material as THREE.MeshStandardMaterial[]
+      materials.forEach((m) => m.color.set(UNLOCKED_COLOR))
+    })
+    throwDiceRef.current()
+  }, [diceCount])
+
+  const commitAndReset = useCallback(() => {
+    onCommitPlacementRef.current?.()
+    newTurn()
+  }, [newTurn])
 
   useEffect(() => {
     const host = hostRef.current
@@ -503,8 +531,15 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3 }: DiceThrowP
           if (settledFor > 0.26) {
             rollingRef.current = false
             setIsRolling(false)
-            setResults(dice.map((die) => readTopFace(die.body)))
-            setAttempt((prev) => prev + 1) // 0→1 after first, 1→2 after second, etc.
+            const faceValues = dice.map((die) => readTopFace(die.body))
+            setResults(faceValues)
+            setAttempt((prev) => prev + 1)
+            const total = faceValues.reduce((sum, v) => sum + v, 0)
+            onDiceResultRef.current?.({
+              total,
+              values: faceValues,
+              attempt: attemptRef.current + 1,
+            })
           }
         } else {
           settledFor = 0
@@ -589,19 +624,34 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3 }: DiceThrowP
         </div>
 
         <div className="flex items-center gap-4">
-          {!isRolling && attempt > 0 && !turnOver && (
+          {!isRolling && attempt > 0 && (
             <span className="text-sm font-semibold text-slate-400">
-              {attempt} of {maxAttempts}
+              {turnOver && !hasPendingPlacement ? "Place on board" : `${attempt} of ${maxAttempts}`}
             </span>
           )}
 
-          <button
-            disabled={isRolling}
-            onClick={() => turnOver ? newTurn() : throwDiceRef.current()}
-            className="w-20 rounded-full border border-slate-300 bg-white/90 py-2 text-center text-xs font-bold uppercase tracking-widest text-slate-700 shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            {turnOver ? "Reset" : "Play"}
-          </button>
+          {!turnOver ? (
+            <button
+              disabled={!canThrow}
+              onClick={() => {
+                if (hasPendingPlacement) {
+                  commitAndThrow()
+                } else {
+                  throwDiceRef.current()
+                }
+              }}
+              className="w-20 rounded-full border border-slate-300 bg-white/90 py-2 text-center text-xs font-bold uppercase tracking-widest text-slate-700 shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              Play
+            </button>
+          ) : hasPendingPlacement ? (
+            <button
+              onClick={commitAndReset}
+              className="w-24 rounded-full border border-emerald-400 bg-emerald-50 py-2 text-center text-xs font-bold uppercase tracking-widest text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+            >
+              Confirm
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
