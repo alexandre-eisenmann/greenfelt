@@ -65,7 +65,7 @@ const ROW_LABELS: Array<{ id: RowId; left: string; label: string }> = [
   { id: "yam", left: "50", label: "YAM" },
 ]
 
-type ColumnTotals = {
+export type ColumnTotals = {
   upperTotal: number
   upperComplete: boolean
   bonus: number
@@ -279,7 +279,7 @@ function renderPlayableCell({
   )
 }
 
-function computeColumnTotals(columnValues: Partial<Record<RowId, number>>): ColumnTotals {
+export function computeColumnTotals(columnValues: Partial<Record<RowId, number>>): ColumnTotals {
   const upperTotal = UPPER_ROWS.reduce((sum, rowId) => sum + (columnValues[rowId] ?? 0), 0)
   const upperComplete = UPPER_ROWS.every((rowId) => columnValues[rowId] != null)
   const bonus = upperTotal >= 60 ? 30 : 0
