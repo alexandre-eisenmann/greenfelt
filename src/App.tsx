@@ -73,6 +73,15 @@ function App() {
     return COLUMN_ORDER.reduce((sum, columnId) => sum + computeColumnTotals(sheet[columnId]).combined, 0)
   }, [sheet])
 
+  const onlySecoRemaining = useMemo(() => {
+    const nonSecoColumns: ColumnId[] = ["down", "up", "desordem"]
+    const nonSecoFilled = nonSecoColumns.every((columnId) =>
+      PLAYABLE_ROWS.every((rowId) => sheet[columnId][rowId] != null),
+    )
+    const secoHasEmpty = PLAYABLE_ROWS.some((rowId) => sheet.seco[rowId] == null)
+    return nonSecoFilled && secoHasEmpty
+  }, [sheet])
+
   const handleDiceResult = useCallback((result: RollResult) => {
     setRollResult(result)
     setHasDiceResult(true)
@@ -184,6 +193,7 @@ function App() {
                 maxAttempts={3}
                 onDiceResult={handleDiceResult}
                 onRollStart={handleRollStart}
+                forceSingleAttempt={onlySecoRemaining}
                 hasPendingPlacement={pendingPlacement != null}
                 onCommitPlacement={commitPlacement}
               />

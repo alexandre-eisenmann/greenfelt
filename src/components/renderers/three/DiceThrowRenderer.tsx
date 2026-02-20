@@ -15,6 +15,7 @@ type DiceThrowProps = {
   maxAttempts?: number
   onDiceResult?: (result: { total: number; values: number[]; attempt: number }) => void
   onRollStart?: () => void
+  forceSingleAttempt?: boolean
   hasPendingPlacement?: boolean
   onCommitPlacement?: () => void
 }
@@ -71,6 +72,7 @@ export function DiceThrowRenderer({
   maxAttempts = 3,
   onDiceResult,
   onRollStart,
+  forceSingleAttempt = false,
   hasPendingPlacement = false,
   onCommitPlacement,
 }: DiceThrowProps) {
@@ -89,13 +91,13 @@ export function DiceThrowRenderer({
   attemptRef.current = attempt
 
   const diceRef = useRef<DieEntity[]>([])
+  const effectiveMaxAttempts = forceSingleAttempt ? 1 : maxAttempts
   const onDiceResultRef = useRef(onDiceResult)
   onDiceResultRef.current = onDiceResult
 
   const toggleLock = useCallback((index: number) => {
-    if (rollingRef.current) return
     // Can only lock between throws: at least 1 throw done, and not yet at max
-    if (attemptRef.current < 1 || attemptRef.current >= maxAttempts) return
+    if (attemptRef.current < 1 || attemptRef.current >= effectiveMaxAttempts) return
 
     setLocked((prev) => {
       const next = [...prev]
@@ -108,7 +110,7 @@ export function DiceThrowRenderer({
       }
       return next
     })
-  }, [maxAttempts])
+  }, [effectiveMaxAttempts])
 
   const onCommitPlacementRef = useRef(onCommitPlacement)
   onCommitPlacementRef.current = onCommitPlacement
@@ -278,7 +280,6 @@ export function DiceThrowRenderer({
     const pointer = new THREE.Vector2()
 
     const onPointerDown = (event: PointerEvent) => {
-      if (rollingRef.current) return
       audio.unlock()
       const rect = renderer.domElement.getBoundingClientRect()
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
@@ -424,7 +425,7 @@ export function DiceThrowRenderer({
 
     const throwDice = () => {
       if (rollingRef.current) return
-      if (attemptRef.current >= maxAttempts) return
+      if (attemptRef.current >= effectiveMaxAttempts) return
 
       audio.unlock()
       rollingRef.current = true
@@ -540,7 +541,7 @@ export function DiceThrowRenderer({
             const faceValues = dice.map((die) => readTopFace(die.body))
             setResults(faceValues)
             const nextAttempt = attemptRef.current + 1
-            if (nextAttempt >= maxAttempts) {
+            if (nextAttempt >= effectiveMaxAttempts) {
               const allLocked = Array(diceCount).fill(true)
               setLocked(allLocked)
               lockedRef.current = allLocked
@@ -600,12 +601,12 @@ export function DiceThrowRenderer({
 
       renderer.dispose()
     }
-  }, [diceCount, maxAttempts, onRollStart, toggleLock])
+  }, [diceCount, effectiveMaxAttempts, onRollStart, toggleLock])
 
   const total = results.reduce((sum, v) => sum + v, 0)
-  const turnOver = attempt >= maxAttempts && !isRolling
-  const canThrow = !isRolling && (attempt < maxAttempts || hasPendingPlacement)
-  const canLock = !isRolling && attempt >= 1 && attempt < maxAttempts
+  const turnOver = attempt >= effectiveMaxAttempts && !isRolling
+  const canThrow = !isRolling && (attempt < effectiveMaxAttempts || hasPendingPlacement)
+  const canLock = attempt >= 1 && attempt < effectiveMaxAttempts
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -615,7 +616,7 @@ export function DiceThrowRenderer({
 
       <div className="relative flex items-center justify-between px-2 py-0" style={{ fontFamily: "'Inter', sans-serif" }}>
         <div className="relative flex h-7 items-center gap-2.5">
-          {results.length > 0 && !isRolling ? (
+          {results.length > 0 ? (
             <>
               <div className="flex items-center gap-1">
                 {results.map((value, i) => (
@@ -636,10 +637,13 @@ export function DiceThrowRenderer({
               </div>
               <span className="text-[11px] font-medium text-slate-400">=</span>
               <span className="text-base font-bold text-slate-800">{total}</span>
-              {!isRolling && attempt > 0 && (
+              {attempt > 0 && (
                 <span className="ml-1 inline-flex h-5 items-center rounded-full bg-slate-200 px-2 text-[10px] font-bold text-slate-600">
-                  {turnOver && !hasPendingPlacement ? "PLACE" : `${attempt} of ${maxAttempts}`}
+                  {turnOver && !hasPendingPlacement ? "PLACE" : `${attempt} of ${effectiveMaxAttempts}`}
                 </span>
+              )}
+              {isRolling && (
+                <span className="text-[11px] font-medium text-slate-500">Rolling...</span>
               )}
             </>
           ) : (
