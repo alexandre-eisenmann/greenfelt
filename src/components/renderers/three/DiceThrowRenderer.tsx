@@ -844,6 +844,8 @@ export function DiceThrowRenderer({
   const canThrow = !isRolling && (attempt < effectiveMaxAttempts || hasPendingPlacement)
   const canLock = attempt >= 1 && attempt < effectiveMaxAttempts
   const playButtonPressed = isPlayPressed && canThrow
+  const playButtonScale = playButtonPressed ? (isHoldSlowActive ? 1.2 : 1.1) : 1
+  const playButtonTranslateY = playButtonPressed ? 1 : 0
   const sortedIndicators = results
     .map((value, index) => ({ value, index, isLocked: locked[index] }))
     .sort((a, b) => a.value - b.value || a.index - b.index)
@@ -864,6 +866,7 @@ export function DiceThrowRenderer({
   const startPlayPress = useCallback(
     (event: ReactPointerEvent<HTMLButtonElement>) => {
       if (!canThrow || event.button !== 0) return
+      event.preventDefault()
       setIsPlayPressed(true)
       setIsHoldSlowActive(false)
       holdSlowActivatedRef.current = false
@@ -902,7 +905,7 @@ export function DiceThrowRenderer({
       </div>
 
       <div className="relative flex items-center justify-between px-2 py-0" style={{ fontFamily: "'Inter', sans-serif" }}>
-        <div className="relative flex h-7 items-center gap-2.5">
+        <div className="relative flex h-8 items-center gap-2 pr-20">
           {results.length > 0 ? (
             <>
               <div className="flex items-center gap-1">
@@ -911,7 +914,7 @@ export function DiceThrowRenderer({
                     type="button"
                     key={die.index}
                     onClick={() => canLock && toggleLock(die.index)}
-                    className={`grid h-6 w-6 select-none place-items-center rounded-md border text-[11px] font-bold shadow-sm transition-colors ${
+                    className={`grid h-7 w-7 select-none place-items-center rounded-lg border text-base font-bold leading-none transition-colors ${
                       die.isLocked
                         ? "border-red-400 bg-red-100 text-red-800"
                         : "border-slate-300 bg-white text-slate-800"
@@ -922,21 +925,31 @@ export function DiceThrowRenderer({
                   </button>
                 ))}
               </div>
-              {attempt > 0 && (
-                <span className="ml-1 inline-flex h-5 w-[58px] items-center justify-center rounded-full bg-slate-200 px-1 text-[10px] font-bold tabular-nums text-slate-600">
-                  {turnOver && !hasPendingPlacement ? "PLACE" : `${attempt} of ${effectiveMaxAttempts}`}
-                </span>
-              )}
-              <div className="pointer-events-none absolute top-full left-0 mt-0.5 flex items-center gap-2">
+              <div className="pointer-events-none inline-flex w-[42px] items-center justify-start gap-1">
                 {isRolling ? (
-                  <span className="text-[11px] font-medium text-slate-500">Rolling...</span>
+                  <span className="inline-flex items-center gap-1 text-slate-500" aria-label="Rolling">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" style={{ animationDelay: "0ms", animationDuration: "900ms" }} />
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" style={{ animationDelay: "150ms", animationDuration: "900ms" }} />
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" style={{ animationDelay: "300ms", animationDuration: "900ms" }} />
+                  </span>
                 ) : (
                   <>
-                    <span className="text-[11px] font-medium text-slate-400">=</span>
-                    <span className="text-base font-bold leading-none text-slate-800">{total}</span>
+                    <span className="text-sm font-medium text-slate-400">=</span>
+                    <span className="text-lg font-bold leading-none text-slate-800">{total}</span>
                   </>
                 )}
               </div>
+              <span
+                className={`ml-1 inline-flex h-6 w-[74px] -translate-x-2 items-center justify-center rounded-full bg-slate-200 px-2 text-xs font-bold tabular-nums text-slate-600 ${
+                  attempt > 0 ? "" : "opacity-0"
+                }`}
+              >
+                {attempt > 0 ? (
+                  turnOver && !hasPendingPlacement ? "PLACE" : `${attempt} of ${effectiveMaxAttempts}`
+                ) : (
+                  "0 of 0"
+                )}
+              </span>
             </>
           ) : (
             <>
@@ -944,20 +957,27 @@ export function DiceThrowRenderer({
                 {Array.from({ length: 5 }).map((_, i) => (
                   <span
                     key={i}
-                    className="grid h-6 w-6 place-items-center rounded-md border border-transparent text-[11px]"
+                    className="grid h-7 w-7 place-items-center rounded-lg border border-transparent text-base leading-none"
                   />
                 ))}
               </div>
-              <div className="pointer-events-none absolute top-full left-0 mt-0.5 flex items-center gap-2">
+              <div className="pointer-events-none inline-flex w-[42px] items-center justify-start gap-1">
                 {isRolling ? (
-                  <span className="text-[11px] font-medium text-slate-500">Rolling...</span>
+                  <span className="inline-flex items-center gap-1 text-slate-500" aria-label="Rolling">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" style={{ animationDelay: "0ms", animationDuration: "900ms" }} />
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" style={{ animationDelay: "150ms", animationDuration: "900ms" }} />
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" style={{ animationDelay: "300ms", animationDuration: "900ms" }} />
+                  </span>
                 ) : (
                   <>
-                    <span className="text-[11px] font-medium text-transparent">=</span>
-                    <span className="text-base font-bold leading-none text-transparent">00</span>
+                    <span className="text-sm font-medium text-transparent">=</span>
+                    <span className="text-lg font-bold leading-none text-transparent">00</span>
                   </>
                 )}
               </div>
+              <span className="ml-1 inline-flex h-6 w-[74px] -translate-x-2 items-center justify-center rounded-full bg-slate-200 px-2 text-xs font-bold tabular-nums text-slate-600 opacity-0">
+                0 of 0
+              </span>
             </>
           )}
         </div>
@@ -966,12 +986,19 @@ export function DiceThrowRenderer({
             {isHoldSlowActive && (
               <>
                 <span
-                  className="pointer-events-none absolute -inset-2 rounded-full border-8 border-white/75 animate-pulse"
-                  style={{ animationDuration: "1800ms" }}
+                  className="pointer-events-none absolute -inset-4 z-0 rounded-full border border-amber-300/85 animate-pulse"
+                  style={{
+                    animationDuration: "1800ms",
+                    borderWidth: "16px",
+                    transform: `translateY(${playButtonTranslateY}px) scale(${playButtonScale})`,
+                  }}
                 />
                 <span
-                  className="pointer-events-none absolute -inset-5 rounded-full bg-white/30 blur-md animate-pulse"
-                  style={{ animationDuration: "1800ms" }}
+                  className="pointer-events-none absolute -inset-4 z-0 rounded-full bg-amber-200/25 blur-md animate-pulse"
+                  style={{
+                    animationDuration: "1800ms",
+                    transform: `translateY(${playButtonTranslateY}px) scale(${playButtonScale})`,
+                  }}
                 />
               </>
             )}
@@ -980,16 +1007,21 @@ export function DiceThrowRenderer({
               onPointerDown={startPlayPress}
               onPointerUp={releasePlayPress}
               onPointerCancel={resetPlayHoldState}
-              className={`h-14 w-14 touch-manipulation appearance-none rounded-full border-2 text-center text-[10px] font-bold uppercase tracking-widest shadow-md transition-[transform,colors,box-shadow,filter] duration-100 ${
+              className={`relative z-10 h-14 w-14 touch-manipulation select-none appearance-none rounded-full border-2 text-center text-[10px] font-bold uppercase tracking-widest shadow-md transition-[transform,colors,box-shadow,filter] duration-100 ${
                 canThrow
                   ? "cursor-pointer border-red-600 bg-red-500 text-white hover:bg-red-500"
                   : "cursor-not-allowed border-red-300 bg-red-300 text-white"
               }`}
               style={{
                 WebkitTapHighlightColor: "transparent",
-                transform: playButtonPressed ? "translateY(1px) scale(0.965)" : "translateY(0) scale(1)",
-                filter: playButtonPressed ? "brightness(0.93)" : "none",
-                boxShadow: "0 0 0 2px rgba(0,0,0,0.16), 0 8px 16px rgba(0,0,0,0.28)",
+                WebkitUserSelect: "none",
+                userSelect: "none",
+                WebkitTouchCallout: "none",
+                transform: `translateY(${playButtonTranslateY}px) scale(${playButtonScale})`,
+                filter: playButtonPressed ? "brightness(1.03)" : "none",
+                boxShadow: isHoldSlowActive
+                  ? "0 0 0 2px rgba(0,0,0,0.16), 0 12px 24px rgba(0,0,0,0.34)"
+                  : "0 0 0 2px rgba(0,0,0,0.16), 0 8px 16px rgba(0,0,0,0.28)",
               }}
               title={isHoldSlowActive ? "SLOW active" : "Hold for SLOW"}
             >
