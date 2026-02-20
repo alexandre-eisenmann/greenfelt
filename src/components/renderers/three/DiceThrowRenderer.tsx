@@ -539,12 +539,22 @@ export function DiceThrowRenderer({
             setIsRolling(false)
             const faceValues = dice.map((die) => readTopFace(die.body))
             setResults(faceValues)
+            const nextAttempt = attemptRef.current + 1
+            if (nextAttempt >= maxAttempts) {
+              const allLocked = Array(diceCount).fill(true)
+              setLocked(allLocked)
+              lockedRef.current = allLocked
+              dice.forEach((die) => {
+                const materials = die.mesh.material as THREE.MeshStandardMaterial[]
+                materials.forEach((m) => m.color.set(LOCKED_COLOR))
+              })
+            }
             setAttempt((prev) => prev + 1)
             const total = faceValues.reduce((sum, v) => sum + v, 0)
             onDiceResultRef.current?.({
               total,
               values: faceValues,
-              attempt: attemptRef.current + 1,
+              attempt: nextAttempt,
             })
           }
         } else {
