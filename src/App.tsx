@@ -9,7 +9,7 @@ import {
   type RowId,
   type YamSheet,
 } from "./components/YamScorecard"
-import { DiceThrowRenderer, type RollSpeedMode } from "./components/renderers/three/DiceThrowRenderer"
+import { DiceThrowRenderer } from "./components/renderers/three/DiceThrowRenderer"
 const COLUMN_ORDER: ColumnId[] = ["down", "up", "desordem", "seco"]
 const DOWN_ORDER: RowId[] = [...PLAYABLE_ROWS]
 const UP_ORDER: RowId[] = [...PLAYABLE_ROWS].reverse()
@@ -28,8 +28,6 @@ function App() {
   const [rollResult, setRollResult] = useState<RollResult | null>(null)
   const [hasDiceResult, setHasDiceResult] = useState(false)
   const [pendingPlacement, setPendingPlacement] = useState<Placement | null>(null)
-  const [rollSpeedMode, setRollSpeedMode] = useState<RollSpeedMode>("normal")
-
   const currentAttempt = rollResult?.attempt ?? 0
 
   const onlySecoRemaining = useMemo(() => {
@@ -149,7 +147,7 @@ function App() {
         {/* Left column: info panel + scorecard
             Mobile: order-2 → appears below the dice
             Desktop: order-1 → left side */}
-        <div className="order-2 ml-[5px] flex flex-col items-start gap-0 pl-2 lg:order-1 lg:ml-0 lg:shrink-0 lg:items-start lg:gap-5 lg:pl-0">
+        <div className="order-2 flex flex-col items-start gap-0 lg:order-1 lg:shrink-0 lg:items-start lg:gap-5">
           <YamScorecard
             sheet={sheet}
             openCells={openCells}
@@ -197,8 +195,7 @@ function App() {
                 forceSingleAttempt={onlySecoRemaining}
                 hasPendingPlacement={pendingPlacement != null}
                 onCommitPlacement={commitPlacement}
-                rollSpeedMode={rollSpeedMode}
-                onRollSpeedModeChange={setRollSpeedMode}
+                rollSpeedMode="fast"
               />
             </div>
           )}

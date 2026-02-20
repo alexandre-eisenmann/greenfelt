@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useRef, useState, useCallback, type PointerEvent as ReactPointerEvent } from "react"
 import * as CANNON from "cannon-es"
 import * as THREE from "three"
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js"
@@ -11,6 +11,7 @@ type DieEntity = {
 }
 
 export type RollSpeedMode = "normal" | "fast"
+const HOLD_TO_SLOW_MS = 500
 
 type DiceThrowProps = {
   diceCount?: number
@@ -21,7 +22,6 @@ type DiceThrowProps = {
   hasPendingPlacement?: boolean
   onCommitPlacement?: () => void
   rollSpeedMode?: RollSpeedMode
-  onRollSpeedModeChange?: (mode: RollSpeedMode) => void
 }
 
 const DIE_SIZE_DESKTOP = 1.36
@@ -170,10 +170,9 @@ export function DiceThrowRenderer({
   hasPendingPlacement = false,
   onCommitPlacement,
   rollSpeedMode = "normal",
-  onRollSpeedModeChange,
 }: DiceThrowProps) {
   const hostRef = useRef<HTMLDivElement | null>(null)
-  const throwDiceRef = useRef<() => void>(() => {})
+  const throwDiceRef = useRef<(modeOverride?: RollSpeedMode) => void>(() => {})
   const parkDiceRef = useRef<() => void>(() => {})
   const rollingRef = useRef(false)
   const [isRolling, setIsRolling] = useState(false)
@@ -183,6 +182,10 @@ export function DiceThrowRenderer({
   // attempt = 0 means no throws yet, 1 = first throw done, etc.
   const [attempt, setAttempt] = useState(0)
   const [locked, setLocked] = useState<boolean[]>(() => Array(diceCount).fill(false))
+  const [isPlayPressed, setIsPlayPressed] = useState(false)
+  const [isHoldSlowActive, setIsHoldSlowActive] = useState(false)
+  const holdToSlowTimerRef = useRef<number | null>(null)
+  const holdSlowActivatedRef = useRef(false)
   const lockedRef = useRef(locked)
   lockedRef.current = locked
   const attemptRef = useRef(attempt)
@@ -220,7 +223,7 @@ export function DiceThrowRenderer({
   const onCommitPlacementRef = useRef(onCommitPlacement)
   onCommitPlacementRef.current = onCommitPlacement
 
-  const commitAndThrow = useCallback(() => {
+  const commitAndThrow = useCallback((modeOverride?: RollSpeedMode) => {
     onCommitPlacementRef.current?.()
     setAttempt(0)
     attemptRef.current = 0
@@ -232,7 +235,7 @@ export function DiceThrowRenderer({
       const materials = die.mesh.material as THREE.MeshStandardMaterial[]
       materials.forEach((m) => m.color.set(UNLOCKED_COLOR))
     })
-    throwDiceRef.current()
+    throwDiceRef.current(modeOverride)
   }, [diceCount])
 
   useEffect(() => {
@@ -529,11 +532,11 @@ export function DiceThrowRenderer({
       })
     }
 
-    const throwDice = () => {
+    const throwDice = (modeOverride?: RollSpeedMode) => {
       if (rollingRef.current) return
       if (attemptRef.current >= effectiveMaxAttemptsRef.current) return
 
-      const profile = profileForMode(rollSpeedModeRef.current)
+      const profile = profileForMode(modeOverride ?? rollSpeedModeRef.current)
       activeRollProfileRef.current = profile
       ;(world.solver as CANNON.GSSolver).iterations = profile.solverIterations
       world.gravity.set(0, profile.gravityY, 0)
@@ -840,9 +843,57 @@ export function DiceThrowRenderer({
   const turnOver = attempt >= effectiveMaxAttempts && !isRolling
   const canThrow = !isRolling && (attempt < effectiveMaxAttempts || hasPendingPlacement)
   const canLock = attempt >= 1 && attempt < effectiveMaxAttempts
+  const playButtonPressed = isPlayPressed && canThrow
   const sortedIndicators = results
     .map((value, index) => ({ value, index, isLocked: locked[index] }))
     .sort((a, b) => a.value - b.value || a.index - b.index)
+
+  const clearHoldToSlowTimer = useCallback(() => {
+    if (holdToSlowTimerRef.current == null) return
+    window.clearTimeout(holdToSlowTimerRef.current)
+    holdToSlowTimerRef.current = null
+  }, [])
+
+  const resetPlayHoldState = useCallback(() => {
+    clearHoldToSlowTimer()
+    holdSlowActivatedRef.current = false
+    setIsHoldSlowActive(false)
+    setIsPlayPressed(false)
+  }, [clearHoldToSlowTimer])
+
+  const startPlayPress = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (!canThrow || event.button !== 0) return
+      setIsPlayPressed(true)
+      setIsHoldSlowActive(false)
+      holdSlowActivatedRef.current = false
+      clearHoldToSlowTimer()
+      holdToSlowTimerRef.current = window.setTimeout(() => {
+        holdSlowActivatedRef.current = true
+        setIsHoldSlowActive(true)
+      }, HOLD_TO_SLOW_MS)
+      event.currentTarget.setPointerCapture(event.pointerId)
+    },
+    [canThrow, clearHoldToSlowTimer],
+  )
+
+  const releasePlayPress = useCallback(() => {
+    if (!isPlayPressed) return
+    const useSlowOverride = holdSlowActivatedRef.current
+    resetPlayHoldState()
+    if (!canThrow) return
+    if (hasPendingPlacement) {
+      commitAndThrow(useSlowOverride ? "normal" : undefined)
+      return
+    }
+    throwDiceRef.current(useSlowOverride ? "normal" : undefined)
+  }, [canThrow, commitAndThrow, hasPendingPlacement, isPlayPressed, resetPlayHoldState])
+
+  useEffect(() => {
+    return () => {
+      clearHoldToSlowTimer()
+    }
+  }, [clearHoldToSlowTimer])
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -910,41 +961,46 @@ export function DiceThrowRenderer({
             </>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => onRollSpeedModeChange?.(rollSpeedMode === "fast" ? "normal" : "fast")}
-          className="absolute right-[4.5rem] top-1/2 inline-flex h-6 min-w-[58px] -translate-y-1/2 items-center justify-center rounded-full border border-slate-300 bg-white px-3 text-[10px] font-semibold tracking-[0.05em] text-slate-700 uppercase shadow-sm transition-colors hover:border-slate-400 hover:text-slate-900"
-          style={{ fontFamily: "'Inter', sans-serif" }}
-          aria-label={`Switch roll speed mode to ${rollSpeedMode === "fast" ? "slow" : "fast"}`}
-          title={`Switch to ${rollSpeedMode === "fast" ? "SLOW" : "FAST"}`}
-        >
-          {rollSpeedMode === "fast" ? "SLOW" : "FAST"}
-        </button>
         {(!turnOver || hasPendingPlacement) && (
-          <button
-            aria-disabled={!canThrow}
-            onClick={() => {
-              if (!canThrow) return
-              if (hasPendingPlacement) {
-                commitAndThrow()
-              } else {
-                throwDiceRef.current()
-              }
-            }}
-            className={`absolute right-2 -top-6 z-20 h-14 w-14 touch-manipulation appearance-none rounded-full border-2 text-center text-[10px] font-bold uppercase tracking-widest shadow-md transition-colors ${
-              canThrow
-                ? "cursor-pointer border-red-600 bg-red-500 text-white hover:bg-red-500"
-                : "cursor-not-allowed border-red-300 bg-red-300 text-white"
-            }`}
-            style={{ WebkitTapHighlightColor: "transparent", boxShadow: "0 0 0 2px rgba(0,0,0,0.16), 0 8px 16px rgba(0,0,0,0.28)" }}
-          >
-            <span
-              className="text-[11px] font-extrabold"
-              style={{ textShadow: "0 1px 1px rgba(0,0,0,0.28)" }}
+          <div className="absolute right-2 -top-6 z-20 h-14 w-14">
+            {isHoldSlowActive && (
+              <>
+                <span
+                  className="pointer-events-none absolute -inset-2 rounded-full border-8 border-white/75 animate-pulse"
+                  style={{ animationDuration: "1800ms" }}
+                />
+                <span
+                  className="pointer-events-none absolute -inset-5 rounded-full bg-white/30 blur-md animate-pulse"
+                  style={{ animationDuration: "1800ms" }}
+                />
+              </>
+            )}
+            <button
+              aria-disabled={!canThrow}
+              onPointerDown={startPlayPress}
+              onPointerUp={releasePlayPress}
+              onPointerCancel={resetPlayHoldState}
+              className={`h-14 w-14 touch-manipulation appearance-none rounded-full border-2 text-center text-[10px] font-bold uppercase tracking-widest shadow-md transition-[transform,colors,box-shadow,filter] duration-100 ${
+                canThrow
+                  ? "cursor-pointer border-red-600 bg-red-500 text-white hover:bg-red-500"
+                  : "cursor-not-allowed border-red-300 bg-red-300 text-white"
+              }`}
+              style={{
+                WebkitTapHighlightColor: "transparent",
+                transform: playButtonPressed ? "translateY(1px) scale(0.965)" : "translateY(0) scale(1)",
+                filter: playButtonPressed ? "brightness(0.93)" : "none",
+                boxShadow: "0 0 0 2px rgba(0,0,0,0.16), 0 8px 16px rgba(0,0,0,0.28)",
+              }}
+              title={isHoldSlowActive ? "SLOW active" : "Hold for SLOW"}
             >
-              PLAY
-            </span>
-          </button>
+              <span
+                className="text-[11px] font-extrabold"
+                style={{ textShadow: "0 1px 1px rgba(0,0,0,0.28)" }}
+              >
+                PLAY
+              </span>
+            </button>
+          </div>
         )}
       </div>
     </div>
