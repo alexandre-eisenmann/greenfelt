@@ -84,6 +84,10 @@ type RollProfile = {
   linearStillThreshold: number
   angularStillThreshold: number
   maxRollSeconds: number | null
+  timeoutGraceSeconds: number
+  timeoutFaceHoldSeconds: number
+  timeoutLinearStillThreshold: number
+  timeoutAngularStillThreshold: number
   gravityY: number
   faceUpDrop: boolean
   spawnYBase: number
@@ -108,6 +112,10 @@ function profileForMode(mode: RollSpeedMode): RollProfile {
       linearStillThreshold: 0.14,
       angularStillThreshold: 0.18,
       maxRollSeconds: 0.7,
+      timeoutGraceSeconds: 0.45,
+      timeoutFaceHoldSeconds: 0.1,
+      timeoutLinearStillThreshold: 0.22,
+      timeoutAngularStillThreshold: 0.26,
       gravityY: -130,
       faceUpDrop: true,
       spawnYBase: 9.5,
@@ -131,6 +139,10 @@ function profileForMode(mode: RollSpeedMode): RollProfile {
     linearStillThreshold: 0.02,
     angularStillThreshold: 0.03,
     maxRollSeconds: null,
+    timeoutGraceSeconds: 0,
+    timeoutFaceHoldSeconds: 0,
+    timeoutLinearStillThreshold: 0,
+    timeoutAngularStillThreshold: 0,
     gravityY: -40,
     faceUpDrop: false,
     spawnYBase: 4,
@@ -502,6 +514,9 @@ export function DiceThrowRenderer({
 
     let settledFor = 0
     let rollElapsed = 0
+    let timeoutReached = false
+    let timeoutFaceStableFor = 0
+    let timeoutFaces: number[] | null = null
 
     // Park all dice below the table (hidden)
     const parkDice = () => {
@@ -531,6 +546,9 @@ export function DiceThrowRenderer({
       onRollStartRef.current?.()
       settledFor = 0
       rollElapsed = 0
+      timeoutReached = false
+      timeoutFaceStableFor = 0
+      timeoutFaces = null
 
       const currentLocked = lockedRef.current
       const isFirstThrow = attemptRef.current === 0
@@ -679,10 +697,10 @@ export function DiceThrowRenderer({
         const activeRollProfile = activeRollProfileRef.current
         rollElapsed += dt
         const currentLocked = lockedRef.current
-        const finalizeRoll = () => {
+        const finalizeRoll = (faceValuesOverride?: number[]) => {
           rollingRef.current = false
           setIsRolling(false)
-          const faceValues = dice.map((die) => readTopFace(die.body))
+          const faceValues = faceValuesOverride ?? dice.map((die) => readTopFace(die.body))
           setResults(faceValues)
           const nextAttempt = attemptRef.current + 1
           if (nextAttempt >= effectiveMaxAttemptsRef.current) {
@@ -703,32 +721,61 @@ export function DiceThrowRenderer({
           })
         }
 
-        if (
-          activeRollProfile.maxRollSeconds != null &&
-          rollElapsed >= activeRollProfile.maxRollSeconds
-        ) {
-          // Snap unlocked dice to their current top face so the visual result
-          // matches the chip values read by finalizeRoll().
-          dice.forEach((die, i) => {
-            if (currentLocked[i]) return
-            die.body.velocity.set(0, 0, 0)
-            die.body.angularVelocity.set(0, 0, 0)
-            die.body.position.y = dieHalf
-            setDieTopFace(die.body, readTopFace(die.body))
-            die.body.sleep()
-            die.mesh.position.set(die.body.position.x, die.body.position.y, die.body.position.z)
-            die.mesh.quaternion.set(
-              die.body.quaternion.x,
-              die.body.quaternion.y,
-              die.body.quaternion.z,
-              die.body.quaternion.w,
-            )
-          })
-          finalizeRoll()
-          settledFor = 0
-          renderer.render(scene, camera)
-          raf = window.requestAnimationFrame(animate)
-          return
+        if (activeRollProfile.maxRollSeconds != null) {
+          if (!timeoutReached && rollElapsed >= activeRollProfile.maxRollSeconds) {
+            timeoutReached = true
+            timeoutFaceStableFor = 0
+            timeoutFaces = null
+          }
+
+          if (timeoutReached) {
+            const currentFaces = dice.map((die) => readTopFace(die.body))
+            const sameFaces =
+              timeoutFaces != null &&
+              currentFaces.every((value, i) => currentLocked[i] || value === timeoutFaces![i])
+            timeoutFaces = currentFaces
+
+            const timeoutStable = dice.every((die, i) => {
+              if (currentLocked[i]) return true
+              if (die.body.sleepState === CANNON.Body.SLEEPING) return true
+              const linearStill =
+                die.body.velocity.lengthSquared() < activeRollProfile.timeoutLinearStillThreshold
+              const angularStill =
+                die.body.angularVelocity.lengthSquared() < activeRollProfile.timeoutAngularStillThreshold
+              return linearStill && angularStill && die.body.position.y <= dieHalf + 0.14
+            })
+
+            if (sameFaces && timeoutStable) {
+              timeoutFaceStableFor += dt
+              if (timeoutFaceStableFor >= activeRollProfile.timeoutFaceHoldSeconds) {
+                finalizeRoll(currentFaces)
+                settledFor = 0
+                renderer.render(scene, camera)
+                raf = window.requestAnimationFrame(animate)
+                return
+              }
+            } else {
+              timeoutFaceStableFor = 0
+            }
+
+            if (
+              rollElapsed >=
+              activeRollProfile.maxRollSeconds + activeRollProfile.timeoutGraceSeconds
+            ) {
+              // Hard timeout: freeze in-place to avoid any visual reorientation/teleport.
+              dice.forEach((die, i) => {
+                if (currentLocked[i]) return
+                die.body.velocity.set(0, 0, 0)
+                die.body.angularVelocity.set(0, 0, 0)
+                die.body.sleep()
+              })
+              finalizeRoll(currentFaces)
+              settledFor = 0
+              renderer.render(scene, camera)
+              raf = window.requestAnimationFrame(animate)
+              return
+            }
+          }
         }
 
         const allStable = dice.every((die, i) => {
