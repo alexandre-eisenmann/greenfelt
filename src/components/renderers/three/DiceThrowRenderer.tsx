@@ -14,14 +14,15 @@ type DiceThrowProps = {
   diceCount?: number
   maxAttempts?: number
   onDiceResult?: (result: { total: number; values: number[]; attempt: number }) => void
+  onRollStart?: () => void
   hasPendingPlacement?: boolean
   onCommitPlacement?: () => void
 }
 
-const DIE_SIZE = 1.36
-const DIE_HALF = DIE_SIZE / 2
-
-const CAMERA_HALF_HEIGHT = 6.8
+const DIE_SIZE_DESKTOP = 1.36
+const DIE_SIZE_MOBILE = 2
+const CAMERA_HALF_HEIGHT_DESKTOP = 6.8
+const CAMERA_HALF_HEIGHT_MOBILE = 6.0
 const WALL_THICKNESS = 0.9
 const WALL_HEIGHT = 8
 const TABLE_GREEN = 0x1a7a4a
@@ -65,7 +66,14 @@ const PIP_LAYOUTS: Record<number, Array<[number, number]>> = {
 const UNLOCKED_COLOR = 0xffffff
 const LOCKED_COLOR = 0xf28b82
 
-export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult, hasPendingPlacement = false, onCommitPlacement }: DiceThrowProps) {
+export function DiceThrowRenderer({
+  diceCount = 5,
+  maxAttempts = 3,
+  onDiceResult,
+  onRollStart,
+  hasPendingPlacement = false,
+  onCommitPlacement,
+}: DiceThrowProps) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const throwDiceRef = useRef<() => void>(() => {})
   const parkDiceRef = useRef<() => void>(() => {})
@@ -139,6 +147,11 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
+    const isDesktopViewport =
+      typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches
+    const dieSize = isDesktopViewport ? DIE_SIZE_DESKTOP : DIE_SIZE_MOBILE
+    const dieHalf = dieSize / 2
+    const cameraHalfHeight = isDesktopViewport ? CAMERA_HALF_HEIGHT_DESKTOP : CAMERA_HALF_HEIGHT_MOBILE
 
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(TABLE_GREEN)
@@ -220,7 +233,7 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
     floorBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0)
     world.addBody(floorBody)
 
-    const diceGeometry = new RoundedBoxGeometry(DIE_SIZE, DIE_SIZE, DIE_SIZE, 6, 0.16)
+    const diceGeometry = new RoundedBoxGeometry(dieSize, dieSize, dieSize, 6, 0.16)
 
     const dice: DieEntity[] = []
     for (let i = 0; i < diceCount; i += 1) {
@@ -241,7 +254,7 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
 
       const body = new CANNON.Body({
         mass: 1,
-        shape: new CANNON.Box(new CANNON.Vec3(DIE_HALF, DIE_HALF, DIE_HALF)),
+        shape: new CANNON.Box(new CANNON.Vec3(dieHalf, dieHalf, dieHalf)),
         material: diceMaterial,
         sleepSpeedLimit: 0.14,
         sleepTimeLimit: 0.18,
@@ -278,6 +291,7 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
 
     const onPointerDown = (event: PointerEvent) => {
       if (rollingRef.current) return
+      audio.unlock()
       const rect = renderer.domElement.getBoundingClientRect()
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
@@ -344,7 +358,7 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
       })
 
       // Corner bumpers — angled at 45° to deflect dice out of corners
-      const bumperSize = DIE_SIZE * 1.8
+      const bumperSize = dieSize * 1.8
       const bumperShape = new CANNON.Box(
         new CANNON.Vec3(bumperSize / 2, WALL_HEIGHT / 2, WALL_THICKNESS / 2),
       )
@@ -375,7 +389,7 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
       if (!widthPx || !heightPx) return
 
       const aspect = widthPx / heightPx
-      const halfH = CAMERA_HALF_HEIGHT
+      const halfH = cameraHalfHeight
       const halfW = halfH * aspect
 
       camera.left = -halfW
@@ -424,13 +438,15 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
       if (rollingRef.current) return
       if (attemptRef.current >= maxAttempts) return
 
+      audio.unlock()
       rollingRef.current = true
       setIsRolling(true)
+      onRollStart?.()
       settledFor = 0
 
       const currentLocked = lockedRef.current
       const isFirstThrow = attemptRef.current === 0
-      const startX = bounds.minX + DIE_SIZE * 0.8
+      const startX = bounds.minX + dieSize * 0.8
 
       let unlockedIndex = 0
       dice.forEach((die, index) => {
@@ -508,7 +524,7 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
       world.step(fixedStep, dt, 4)
 
       dice.forEach((die) => {
-        keepBodyInside(die.body, bounds)
+        keepBodyInside(die.body, bounds, dieHalf)
         die.mesh.position.set(die.body.position.x, die.body.position.y, die.body.position.z)
         die.mesh.quaternion.set(
           die.body.quaternion.x,
@@ -525,7 +541,7 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
           if (die.body.sleepState === CANNON.Body.SLEEPING) return true
           const linearStill = die.body.velocity.lengthSquared() < 0.02
           const angularStill = die.body.angularVelocity.lengthSquared() < 0.03
-          return linearStill && angularStill && die.body.position.y <= DIE_HALF + 0.08
+          return linearStill && angularStill && die.body.position.y <= dieHalf + 0.08
         })
 
         if (allStable) {
@@ -583,7 +599,7 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
 
       renderer.dispose()
     }
-  }, [diceCount, maxAttempts, toggleLock])
+  }, [diceCount, maxAttempts, onRollStart, toggleLock])
 
   const total = results.reduce((sum, v) => sum + v, 0)
   const turnOver = attempt >= maxAttempts && !isRolling
@@ -592,12 +608,12 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
 
   return (
     <div className="flex h-full w-full flex-col">
-      <div className="min-h-0 flex-1 overflow-hidden rounded-3xl bg-[#1a7a4a]">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-none bg-[#1a7a4a]">
         <div ref={hostRef} className="h-full w-full" />
       </div>
 
-      <div className="flex items-center justify-between px-2 py-0" style={{ fontFamily: "'Inter', sans-serif" }}>
-        <div className="flex items-center gap-2.5">
+      <div className="relative flex items-center justify-between px-2 py-0" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="relative flex h-7 items-center gap-2.5">
           {results.length > 0 && !isRolling ? (
             <>
               <div className="flex items-center gap-1">
@@ -619,36 +635,36 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
               </div>
               <span className="text-[11px] font-medium text-slate-400">=</span>
               <span className="text-base font-bold text-slate-800">{total}</span>
+              {!isRolling && attempt > 0 && (
+                <span className="ml-1 inline-flex h-5 items-center rounded-full bg-slate-200 px-2 text-[10px] font-bold text-slate-600">
+                  {turnOver && !hasPendingPlacement ? "PLACE" : `${attempt} of ${maxAttempts}`}
+                </span>
+              )}
             </>
           ) : (
-            <span className="text-sm font-medium text-slate-400">
-              {isRolling ? "Rolling..." : ""}
-            </span>
+            <>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <span
+                    key={i}
+                    className="grid h-6 w-6 place-items-center rounded-md border border-transparent text-[11px]"
+                  />
+                ))}
+              </div>
+              <span className="text-[11px] font-medium text-transparent">=</span>
+              <span className="text-base font-bold text-transparent">00</span>
+              <span className="ml-1 inline-flex h-5 items-center rounded-full bg-transparent px-2 text-[10px] font-bold text-transparent">
+                0 of 0
+              </span>
+              <span className="absolute top-1/2 left-0 -translate-y-1/2 text-[11px] font-medium text-slate-500">
+                {isRolling ? "Rolling..." : ""}
+              </span>
+            </>
           )}
         </div>
 
         <div className="flex items-center gap-3">
-          {!isRolling && attempt > 0 && (
-            <span className="text-xs font-semibold text-slate-400">
-              {turnOver && !hasPendingPlacement ? "Place on board" : `${attempt} of ${maxAttempts}`}
-            </span>
-          )}
-
-          {!turnOver ? (
-            <button
-              disabled={!canThrow}
-              onClick={() => {
-                if (hasPendingPlacement) {
-                  commitAndThrow()
-                } else {
-                  throwDiceRef.current()
-                }
-              }}
-              className="w-20 touch-manipulation rounded-full border border-slate-300 bg-white/90 py-1 text-center text-[10px] font-bold uppercase tracking-widest text-slate-700 shadow-sm transition hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              Play
-            </button>
-          ) : hasPendingPlacement ? (
+          {turnOver && hasPendingPlacement ? (
             <button
               onClick={commitAndReset}
               className="w-24 touch-manipulation rounded-full border border-emerald-400 bg-emerald-50 py-1 text-center text-[10px] font-bold uppercase tracking-widest text-emerald-700 shadow-sm transition hover:bg-emerald-100 active:scale-[0.98]"
@@ -657,6 +673,32 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
             </button>
           ) : null}
         </div>
+        {!turnOver && (
+          <button
+            aria-disabled={!canThrow}
+            onClick={() => {
+              if (!canThrow) return
+              if (hasPendingPlacement) {
+                commitAndThrow()
+              } else {
+                throwDiceRef.current()
+              }
+            }}
+            className={`absolute right-2 -top-6 z-20 h-14 w-14 touch-manipulation appearance-none rounded-full border-2 text-center text-[10px] font-bold uppercase tracking-widest shadow-md transition-colors ${
+              canThrow
+                ? "cursor-pointer border-red-600 bg-red-500 text-white hover:bg-red-500"
+                : "cursor-not-allowed border-red-300 bg-red-300 text-white"
+            }`}
+            style={{ WebkitTapHighlightColor: "transparent", boxShadow: "0 0 0 2px rgba(0,0,0,0.16), 0 8px 16px rgba(0,0,0,0.28)" }}
+          >
+            <span
+              className="text-[11px] font-extrabold"
+              style={{ textShadow: "0 1px 1px rgba(0,0,0,0.28)" }}
+            >
+              PLAY
+            </span>
+          </button>
+        )}
       </div>
     </div>
   )
@@ -735,11 +777,12 @@ function readTopFace(body: CANNON.Body): number {
 function keepBodyInside(
   body: CANNON.Body,
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number },
+  dieHalf: number,
 ): void {
-  const minX = bounds.minX + DIE_HALF
-  const maxX = bounds.maxX - DIE_HALF
-  const minZ = bounds.minZ + DIE_HALF
-  const maxZ = bounds.maxZ - DIE_HALF
+  const minX = bounds.minX + dieHalf
+  const maxX = bounds.maxX - dieHalf
+  const minZ = bounds.minZ + dieHalf
+  const maxZ = bounds.maxZ - dieHalf
 
   if (body.position.x < minX) {
     body.position.x = minX

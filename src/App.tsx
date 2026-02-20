@@ -79,6 +79,11 @@ function App() {
     setPendingPlacement(null)
   }, [])
 
+  const handleRollStart = useCallback(() => {
+    setHasDiceResult(false)
+    setPendingPlacement(null)
+  }, [])
+
   const handleCellClick = useCallback(
     (columnId: ColumnId, rowId: RowId) => {
       if (!hasDiceResult || !rollResult) return
@@ -128,13 +133,13 @@ function App() {
   }, [])
 
   return (
-    <main className="min-h-screen touch-manipulation bg-white px-1 py-1 sm:px-8 sm:py-8">
+    <main className="min-h-screen touch-manipulation bg-white px-0 py-0 sm:px-8 sm:py-8">
       <section className="mx-auto flex w-full max-w-[1400px] flex-col gap-0 lg:flex-row lg:items-start lg:gap-8">
 
         {/* Left column: info panel + scorecard
             Mobile: order-2 → appears below the dice
             Desktop: order-1 → left side */}
-        <div className="order-2 flex flex-col items-center gap-0 lg:order-1 lg:shrink-0 lg:items-start lg:gap-5">
+        <div className="order-2 ml-[25px] flex flex-col items-start gap-0 pl-2 lg:order-1 lg:ml-0 lg:shrink-0 lg:items-start lg:gap-5 lg:pl-0">
           <YamScorecard
             sheet={sheet}
             openCells={openCells}
@@ -173,11 +178,12 @@ function App() {
               </button>
             </div>
           ) : (
-            <div className="h-[30vh] min-h-[180px] min-w-0 sm:h-[38vh] lg:h-[421px]">
+            <div className="h-[24vh] min-h-[150px] min-w-0 sm:h-[34vh] lg:h-[421px]">
               <DiceThrowRenderer
                 diceCount={5}
                 maxAttempts={3}
                 onDiceResult={handleDiceResult}
+                onRollStart={handleRollStart}
                 hasPendingPlacement={pendingPlacement != null}
                 onCommitPlacement={commitPlacement}
               />

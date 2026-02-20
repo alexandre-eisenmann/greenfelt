@@ -18,6 +18,14 @@ export class DiceAudio {
   private masterGain: GainNode | null = null
   private lastPlayTime = 0
 
+  /** Explicitly unlock/resume audio on user gesture (important on mobile browsers). */
+  unlock(): void {
+    const ctx = this.ensureContext()
+    if (ctx.state === "suspended") {
+      void ctx.resume()
+    }
+  }
+
   private ensureContext(): AudioContext {
     if (!this.ctx) {
       this.ctx = new AudioContext()
@@ -40,6 +48,7 @@ export class DiceAudio {
     this.lastPlayTime = now
 
     const ctx = this.ensureContext()
+    if (ctx.state !== "running") return
     const master = this.masterGain!
 
     // 0 → 1 normalised intensity
