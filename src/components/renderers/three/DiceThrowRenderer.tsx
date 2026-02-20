@@ -110,17 +110,6 @@ export function DiceThrowRenderer({
     })
   }, [maxAttempts])
 
-  const newTurn = useCallback(() => {
-    setAttempt(0)
-    setResults([])
-    setLocked(Array(diceCount).fill(false))
-    diceRef.current.forEach((die) => {
-      const materials = die.mesh.material as THREE.MeshStandardMaterial[]
-      materials.forEach((m) => m.color.set(UNLOCKED_COLOR))
-    })
-    parkDiceRef.current()
-  }, [diceCount])
-
   const onCommitPlacementRef = useRef(onCommitPlacement)
   onCommitPlacementRef.current = onCommitPlacement
 
@@ -138,11 +127,6 @@ export function DiceThrowRenderer({
     })
     throwDiceRef.current()
   }, [diceCount])
-
-  const commitAndReset = useCallback(() => {
-    onCommitPlacementRef.current?.()
-    newTurn()
-  }, [newTurn])
 
   useEffect(() => {
     const host = hostRef.current
