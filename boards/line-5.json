@@ -1,0 +1,14 @@
+{
+  "name": "line-5",
+  "description": "5 nodes in a line. For testing.",
+  "graph": {
+    "adjacency": {
+      "A": ["B"],
+      "B": ["A", "C"],
+      "C": ["B", "D"],
+      "D": ["C", "E"],
+      "E": ["D"]
+    },
+    "openNodes": ["A"]
+  }
+}
