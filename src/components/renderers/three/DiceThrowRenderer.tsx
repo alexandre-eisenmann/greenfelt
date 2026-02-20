@@ -610,7 +610,7 @@ export function DiceThrowRenderer({
 
   const total = results.reduce((sum, v) => sum + v, 0)
   const turnOver = attempt >= maxAttempts && !isRolling
-  const canThrow = !isRolling && attempt < maxAttempts
+  const canThrow = !isRolling && (attempt < maxAttempts || hasPendingPlacement)
   const canLock = !isRolling && attempt >= 1 && attempt < maxAttempts
 
   return (
@@ -670,17 +670,8 @@ export function DiceThrowRenderer({
           )}
         </div>
 
-        <div className="flex items-center gap-3">
-          {turnOver && hasPendingPlacement ? (
-            <button
-              onClick={commitAndReset}
-              className="w-24 touch-manipulation rounded-full border border-emerald-400 bg-emerald-50 py-1 text-center text-[10px] font-bold uppercase tracking-widest text-emerald-700 shadow-sm transition hover:bg-emerald-100 active:scale-[0.98]"
-            >
-              Confirm
-            </button>
-          ) : null}
-        </div>
-        {!turnOver && (
+        <div className="flex items-center gap-3" />
+        {(!turnOver || hasPendingPlacement) && (
           <button
             aria-disabled={!canThrow}
             onClick={() => {
