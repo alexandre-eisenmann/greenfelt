@@ -33,6 +33,8 @@ const WALL_HEIGHT = 8
 const TABLE_GREEN = 0x1a7a4a
 
 const FACE_VALUE_BY_MATERIAL_INDEX = [3, 4, 1, 6, 2, 5]
+const PLAY_BUTTON_DIAMETER_PX = 56
+const PLAY_BUTTON_PRESS_SIZE_BOOST_PX = 50
 
 const PIP_LAYOUTS: Record<number, Array<[number, number]>> = {
   1: [[0, 0]],
@@ -844,7 +846,8 @@ export function DiceThrowRenderer({
   const canThrow = !isRolling && (attempt < effectiveMaxAttempts || hasPendingPlacement)
   const canLock = attempt >= 1 && attempt < effectiveMaxAttempts
   const playButtonPressed = isPlayPressed && canThrow
-  const playButtonScale = playButtonPressed ? (isHoldSlowActive ? 1.2 : 1.1) : 1
+  const pressScaleBase = (PLAY_BUTTON_DIAMETER_PX + PLAY_BUTTON_PRESS_SIZE_BOOST_PX) / PLAY_BUTTON_DIAMETER_PX
+  const playButtonScale = playButtonPressed ? (isHoldSlowActive ? pressScaleBase + 0.08 : pressScaleBase) : 1
   const playButtonTranslateY = playButtonPressed ? 1 : 0
   const sortedIndicators = results
     .map((value, index) => ({ value, index, isLocked: locked[index] }))
@@ -986,18 +989,19 @@ export function DiceThrowRenderer({
             {isHoldSlowActive && (
               <>
                 <span
-                  className="pointer-events-none absolute -inset-4 z-0 rounded-full border border-amber-300/85 animate-pulse"
+                  className="pointer-events-none absolute inset-0 z-0 rounded-full animate-pulse"
                   style={{
                     animationDuration: "1800ms",
-                    borderWidth: "16px",
                     transform: `translateY(${playButtonTranslateY}px) scale(${playButtonScale})`,
+                    boxShadow: "0 0 0 16px rgba(252, 211, 77, 0.9)",
                   }}
                 />
                 <span
-                  className="pointer-events-none absolute -inset-4 z-0 rounded-full bg-amber-200/25 blur-md animate-pulse"
+                  className="pointer-events-none absolute inset-0 z-0 rounded-full animate-pulse"
                   style={{
                     animationDuration: "1800ms",
                     transform: `translateY(${playButtonTranslateY}px) scale(${playButtonScale})`,
+                    boxShadow: "0 0 28px 20px rgba(252, 211, 77, 0.26)",
                   }}
                 />
               </>
