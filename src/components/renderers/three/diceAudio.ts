@@ -60,7 +60,7 @@ export class DiceAudio {
     const ctx = this.ensureContext()
     if (ctx.state !== "running") {
       this.unlock()
-      if (ctx.state !== "running") return
+      if (this.ctx?.state !== "running") return
     }
     const master = this.masterGain!
 
