@@ -31,6 +31,15 @@ function App() {
 
   const currentAttempt = rollResult?.attempt ?? 0
 
+  const onlySecoRemaining = useMemo(() => {
+    const nonSecoColumns: ColumnId[] = ["down", "up", "desordem"]
+    const nonSecoFilled = nonSecoColumns.every((columnId) =>
+      PLAYABLE_ROWS.every((rowId) => sheet[columnId][rowId] != null),
+    )
+    const secoHasEmpty = PLAYABLE_ROWS.some((rowId) => sheet.seco[rowId] == null)
+    return nonSecoFilled && secoHasEmpty
+  }, [sheet])
+
   const openCells = useMemo(() => {
     const open = new Set<string>()
     for (const columnId of COLUMN_ORDER) {
@@ -71,15 +80,6 @@ function App() {
 
   const totalScore = useMemo(() => {
     return COLUMN_ORDER.reduce((sum, columnId) => sum + computeColumnTotals(sheet[columnId]).combined, 0)
-  }, [sheet])
-
-  const onlySecoRemaining = useMemo(() => {
-    const nonSecoColumns: ColumnId[] = ["down", "up", "desordem"]
-    const nonSecoFilled = nonSecoColumns.every((columnId) =>
-      PLAYABLE_ROWS.every((rowId) => sheet[columnId][rowId] != null),
-    )
-    const secoHasEmpty = PLAYABLE_ROWS.some((rowId) => sheet.seco[rowId] == null)
-    return nonSecoFilled && secoHasEmpty
   }, [sheet])
 
   const handleDiceResult = useCallback((result: RollResult) => {

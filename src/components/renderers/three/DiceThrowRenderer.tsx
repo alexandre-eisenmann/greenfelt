@@ -92,12 +92,16 @@ export function DiceThrowRenderer({
 
   const diceRef = useRef<DieEntity[]>([])
   const effectiveMaxAttempts = forceSingleAttempt ? 1 : maxAttempts
+  const effectiveMaxAttemptsRef = useRef(effectiveMaxAttempts)
+  effectiveMaxAttemptsRef.current = effectiveMaxAttempts
   const onDiceResultRef = useRef(onDiceResult)
   onDiceResultRef.current = onDiceResult
+  const onRollStartRef = useRef(onRollStart)
+  onRollStartRef.current = onRollStart
 
   const toggleLock = useCallback((index: number) => {
     // Can only lock between throws: at least 1 throw done, and not yet at max
-    if (attemptRef.current < 1 || attemptRef.current >= effectiveMaxAttempts) return
+    if (attemptRef.current < 1 || attemptRef.current >= effectiveMaxAttemptsRef.current) return
 
     setLocked((prev) => {
       const next = [...prev]
@@ -110,7 +114,7 @@ export function DiceThrowRenderer({
       }
       return next
     })
-  }, [effectiveMaxAttempts])
+  }, [])
 
   const onCommitPlacementRef = useRef(onCommitPlacement)
   onCommitPlacementRef.current = onCommitPlacement
@@ -425,12 +429,12 @@ export function DiceThrowRenderer({
 
     const throwDice = () => {
       if (rollingRef.current) return
-      if (attemptRef.current >= effectiveMaxAttempts) return
+      if (attemptRef.current >= effectiveMaxAttemptsRef.current) return
 
       audio.unlock()
       rollingRef.current = true
       setIsRolling(true)
-      onRollStart?.()
+      onRollStartRef.current?.()
       settledFor = 0
 
       const currentLocked = lockedRef.current
@@ -541,7 +545,7 @@ export function DiceThrowRenderer({
             const faceValues = dice.map((die) => readTopFace(die.body))
             setResults(faceValues)
             const nextAttempt = attemptRef.current + 1
-            if (nextAttempt >= effectiveMaxAttempts) {
+            if (nextAttempt >= effectiveMaxAttemptsRef.current) {
               const allLocked = Array(diceCount).fill(true)
               setLocked(allLocked)
               lockedRef.current = allLocked
@@ -601,7 +605,7 @@ export function DiceThrowRenderer({
 
       renderer.dispose()
     }
-  }, [diceCount, effectiveMaxAttempts, onRollStart, toggleLock])
+  }, [diceCount, toggleLock])
 
   const total = results.reduce((sum, v) => sum + v, 0)
   const turnOver = attempt >= effectiveMaxAttempts && !isRolling
