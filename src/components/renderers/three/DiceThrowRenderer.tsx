@@ -10,6 +10,8 @@ type DieEntity = {
   locked: boolean
 }
 
+export type RollSpeedMode = "normal" | "fast"
+
 type DiceThrowProps = {
   diceCount?: number
   maxAttempts?: number
@@ -18,6 +20,8 @@ type DiceThrowProps = {
   forceSingleAttempt?: boolean
   hasPendingPlacement?: boolean
   onCommitPlacement?: () => void
+  rollSpeedMode?: RollSpeedMode
+  onRollSpeedModeChange?: (mode: RollSpeedMode) => void
 }
 
 const DIE_SIZE_DESKTOP = 1.36
@@ -66,6 +70,84 @@ const PIP_LAYOUTS: Record<number, Array<[number, number]>> = {
 
 const UNLOCKED_COLOR = 0xffffff
 const LOCKED_COLOR = 0xf28b82
+const FACE_NORMALS = [
+  new CANNON.Vec3(1, 0, 0),
+  new CANNON.Vec3(-1, 0, 0),
+  new CANNON.Vec3(0, 1, 0),
+  new CANNON.Vec3(0, -1, 0),
+  new CANNON.Vec3(0, 0, 1),
+  new CANNON.Vec3(0, 0, -1),
+]
+
+type RollProfile = {
+  settleHoldSeconds: number
+  linearStillThreshold: number
+  angularStillThreshold: number
+  maxRollSeconds: number | null
+  gravityY: number
+  faceUpDrop: boolean
+  spawnYBase: number
+  spawnYStep: number
+  solverIterations: number
+  tableRestitution: number
+  diceRestitution: number
+  sleepSpeedLimit: number
+  sleepTimeLimit: number
+  linearDamping: number
+  angularDamping: number
+  impulseXMin: number
+  impulseXMax: number
+  impulseYMin: number
+  impulseYMax: number
+}
+
+function profileForMode(mode: RollSpeedMode): RollProfile {
+  if (mode === "fast") {
+    return {
+      settleHoldSeconds: 0.03,
+      linearStillThreshold: 0.14,
+      angularStillThreshold: 0.18,
+      maxRollSeconds: 0.7,
+      gravityY: -130,
+      faceUpDrop: true,
+      spawnYBase: 9.5,
+      spawnYStep: 0.34,
+      solverIterations: 6,
+      tableRestitution: 0.14,
+      diceRestitution: 0.16,
+      sleepSpeedLimit: 0.36,
+      sleepTimeLimit: 0.05,
+      linearDamping: 0.4,
+      angularDamping: 0.46,
+      impulseXMin: 8.5,
+      impulseXMax: 10.6,
+      impulseYMin: 3.2,
+      impulseYMax: 4.3,
+    }
+  }
+
+  return {
+    settleHoldSeconds: 0.26,
+    linearStillThreshold: 0.02,
+    angularStillThreshold: 0.03,
+    maxRollSeconds: null,
+    gravityY: -40,
+    faceUpDrop: false,
+    spawnYBase: 4,
+    spawnYStep: 0.22,
+    solverIterations: 14,
+    tableRestitution: 0.36,
+    diceRestitution: 0.4,
+    sleepSpeedLimit: 0.14,
+    sleepTimeLimit: 0.18,
+    linearDamping: 0.17,
+    angularDamping: 0.19,
+    impulseXMin: 12.2,
+    impulseXMax: 15.8,
+    impulseYMin: 5.4,
+    impulseYMax: 7.2,
+  }
+}
 
 export function DiceThrowRenderer({
   diceCount = 5,
@@ -75,6 +157,8 @@ export function DiceThrowRenderer({
   forceSingleAttempt = false,
   hasPendingPlacement = false,
   onCommitPlacement,
+  rollSpeedMode = "normal",
+  onRollSpeedModeChange,
 }: DiceThrowProps) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const throwDiceRef = useRef<() => void>(() => {})
@@ -82,6 +166,8 @@ export function DiceThrowRenderer({
   const rollingRef = useRef(false)
   const [isRolling, setIsRolling] = useState(false)
   const [results, setResults] = useState<number[]>([])
+  const resultsRef = useRef<number[]>(results)
+  resultsRef.current = results
   // attempt = 0 means no throws yet, 1 = first throw done, etc.
   const [attempt, setAttempt] = useState(0)
   const [locked, setLocked] = useState<boolean[]>(() => Array(diceCount).fill(false))
@@ -98,6 +184,9 @@ export function DiceThrowRenderer({
   onDiceResultRef.current = onDiceResult
   const onRollStartRef = useRef(onRollStart)
   onRollStartRef.current = onRollStart
+  const rollSpeedModeRef = useRef(rollSpeedMode)
+  rollSpeedModeRef.current = rollSpeedMode
+  const activeRollProfileRef = useRef<RollProfile>(profileForMode(rollSpeedMode))
 
   const toggleLock = useCallback((index: number) => {
     // Can only lock between throws: at least 1 throw done, and not yet at max
@@ -198,22 +287,19 @@ export function DiceThrowRenderer({
       allowSleep: true,
     })
     world.broadphase = new CANNON.SAPBroadphase(world)
-    ;(world.solver as CANNON.GSSolver).iterations = 14
-
+    ;(world.solver as CANNON.GSSolver).iterations = profileForMode("normal").solverIterations
     const tableMaterial = new CANNON.Material("table")
     const diceMaterial = new CANNON.Material("die")
-    world.addContactMaterial(
-      new CANNON.ContactMaterial(diceMaterial, tableMaterial, {
-        friction: 0.24,
-        restitution: 0.36,
-      }),
-    )
-    world.addContactMaterial(
-      new CANNON.ContactMaterial(diceMaterial, diceMaterial, {
-        friction: 0.3,
-        restitution: 0.4,
-      }),
-    )
+    const diceTableContactMaterial = new CANNON.ContactMaterial(diceMaterial, tableMaterial, {
+      friction: 0.24,
+      restitution: profileForMode("normal").tableRestitution,
+    })
+    const diceDiceContactMaterial = new CANNON.ContactMaterial(diceMaterial, diceMaterial, {
+      friction: 0.3,
+      restitution: profileForMode("normal").diceRestitution,
+    })
+    world.addContactMaterial(diceTableContactMaterial)
+    world.addContactMaterial(diceDiceContactMaterial)
 
     const floorBody = new CANNON.Body({
       type: CANNON.Body.STATIC,
@@ -246,11 +332,11 @@ export function DiceThrowRenderer({
         mass: 1,
         shape: new CANNON.Box(new CANNON.Vec3(dieHalf, dieHalf, dieHalf)),
         material: diceMaterial,
-        sleepSpeedLimit: 0.14,
-        sleepTimeLimit: 0.18,
+        sleepSpeedLimit: profileForMode("normal").sleepSpeedLimit,
+        sleepTimeLimit: profileForMode("normal").sleepTimeLimit,
       })
-      body.linearDamping = 0.17
-      body.angularDamping = 0.19
+      body.linearDamping = profileForMode("normal").linearDamping
+      body.angularDamping = profileForMode("normal").angularDamping
       body.allowSleep = true
       world.addBody(body)
 
@@ -415,6 +501,7 @@ export function DiceThrowRenderer({
     resize()
 
     let settledFor = 0
+    let rollElapsed = 0
 
     // Park all dice below the table (hidden)
     const parkDice = () => {
@@ -431,18 +518,36 @@ export function DiceThrowRenderer({
       if (rollingRef.current) return
       if (attemptRef.current >= effectiveMaxAttemptsRef.current) return
 
+      const profile = profileForMode(rollSpeedModeRef.current)
+      activeRollProfileRef.current = profile
+      ;(world.solver as CANNON.GSSolver).iterations = profile.solverIterations
+      world.gravity.set(0, profile.gravityY, 0)
+      diceTableContactMaterial.restitution = profile.tableRestitution
+      diceDiceContactMaterial.restitution = profile.diceRestitution
+
       audio.unlock()
       rollingRef.current = true
       setIsRolling(true)
       onRollStartRef.current?.()
       settledFor = 0
+      rollElapsed = 0
 
       const currentLocked = lockedRef.current
       const isFirstThrow = attemptRef.current === 0
       const startX = bounds.minX + dieSize * 0.8
+      const fastMinX = bounds.minX + dieSize
+      const fastMaxX = bounds.maxX - dieSize
+      const fastMinZ = bounds.minZ + dieSize
+      const fastMaxZ = bounds.maxZ - dieSize
+      const usedFastSpawns: Array<{ x: number; z: number }> = []
 
       let unlockedIndex = 0
       dice.forEach((die, index) => {
+        die.body.sleepSpeedLimit = profile.sleepSpeedLimit
+        die.body.sleepTimeLimit = profile.sleepTimeLimit
+        die.body.linearDamping = profile.linearDamping
+        die.body.angularDamping = profile.angularDamping
+
         // On first throw, ignore locks (throw everything)
         if (!isFirstThrow && currentLocked[index]) {
           die.body.type = CANNON.Body.STATIC
@@ -460,25 +565,68 @@ export function DiceThrowRenderer({
         die.body.force.setZero()
         die.body.torque.setZero()
 
-        const spawnX = startX + unlockedIndex * 0.56 + randomRange(-0.1, 0.1)
-        const spawnY = 4 + unlockedIndex * 0.22
-        const spawnZ = randomRange(-bounds.depth * 0.25, bounds.depth * 0.25)
-        die.body.position.set(spawnX, spawnY, spawnZ)
+        const xSpacing = 0.56
+        const fastSpawn = profile.faceUpDrop
+          ? sampleFastSpawnPoint({
+              minX: fastMinX,
+              maxX: fastMaxX,
+              minZ: fastMinZ,
+              maxZ: fastMaxZ,
+              existing: usedFastSpawns,
+              minDistance: dieSize * 0.95,
+            })
+          : null
+        const spawnX = profile.faceUpDrop
+          ? fastSpawn!.x
+          : startX + unlockedIndex * xSpacing + randomRange(-0.1, 0.1)
+        const spawnY = profile.spawnYBase + unlockedIndex * profile.spawnYStep
+        const spawnYWithJitter = profile.faceUpDrop
+          ? spawnY + randomRange(-0.6, 0.8)
+          : spawnY
+        const spawnZ = profile.faceUpDrop
+          ? fastSpawn!.z
+          : randomRange(-bounds.depth * 0.25, bounds.depth * 0.25)
+        if (profile.faceUpDrop && fastSpawn) {
+          usedFastSpawns.push(fastSpawn)
+        }
+        die.body.position.set(spawnX, spawnYWithJitter, spawnZ)
 
-        const spin = new CANNON.Quaternion()
-        spin.setFromEuler(
-          randomRange(0, Math.PI),
-          randomRange(0, Math.PI),
-          randomRange(0, Math.PI),
-          "XYZ",
-        )
-        die.body.quaternion.copy(spin)
+        if (profile.faceUpDrop) {
+          setDieTopFace(die.body, randomDieValue())
+        } else {
+          const spin = new CANNON.Quaternion()
+          spin.setFromEuler(
+            randomRange(0, Math.PI),
+            randomRange(0, Math.PI),
+            randomRange(0, Math.PI),
+            "XYZ",
+          )
+          die.body.quaternion.copy(spin)
+        }
 
-        const impulse = new CANNON.Vec3(
-          randomRange(12.2, 15.8),
-          randomRange(5.4, 7.2),
-          randomRange(-1.2, 1.2),
-        )
+        const impulse = profile.faceUpDrop
+          ? (() => {
+              const toCenterX = -spawnX
+              const toCenterZ = -spawnZ
+              const centerLen = Math.hypot(toCenterX, toCenterZ) || 1
+              const inward = randomRange(0.9, 2.4)
+              const tangentSign = Math.random() < 0.5 ? -1 : 1
+              const tangentX = tangentSign * (-toCenterZ / centerLen)
+              const tangentZ = tangentSign * (toCenterX / centerLen)
+              const tangent = randomRange(0.15, 1.1)
+              const jitterX = randomRange(-0.45, 0.45)
+              const jitterZ = randomRange(-0.45, 0.45)
+              return new CANNON.Vec3(
+                (toCenterX / centerLen) * inward + tangentX * tangent + jitterX,
+                randomRange(profile.impulseYMin, profile.impulseYMax),
+                (toCenterZ / centerLen) * inward + tangentZ * tangent + jitterZ,
+              )
+            })()
+          : new CANNON.Vec3(
+              randomRange(profile.impulseXMin, profile.impulseXMax),
+              randomRange(profile.impulseYMin, profile.impulseYMax),
+              randomRange(-1.2, 1.2),
+            )
         const impulseOffset = new CANNON.Vec3(
           randomRange(-0.2, 0.2),
           randomRange(-0.08, 0.08),
@@ -528,39 +676,56 @@ export function DiceThrowRenderer({
       })
 
       if (rollingRef.current) {
+        const activeRollProfile = activeRollProfileRef.current
+        rollElapsed += dt
         const currentLocked = lockedRef.current
+        const finalizeRoll = () => {
+          rollingRef.current = false
+          setIsRolling(false)
+          const faceValues = dice.map((die) => readTopFace(die.body))
+          setResults(faceValues)
+          const nextAttempt = attemptRef.current + 1
+          if (nextAttempt >= effectiveMaxAttemptsRef.current) {
+            const allLocked = Array(diceCount).fill(true)
+            setLocked(allLocked)
+            lockedRef.current = allLocked
+            dice.forEach((die) => {
+              const materials = die.mesh.material as THREE.MeshStandardMaterial[]
+              materials.forEach((m) => m.color.set(LOCKED_COLOR))
+            })
+          }
+          setAttempt((prev) => prev + 1)
+          const total = faceValues.reduce((sum, v) => sum + v, 0)
+          onDiceResultRef.current?.({
+            total,
+            values: faceValues,
+            attempt: nextAttempt,
+          })
+        }
+
+        if (
+          activeRollProfile.maxRollSeconds != null &&
+          rollElapsed >= activeRollProfile.maxRollSeconds
+        ) {
+          finalizeRoll()
+          settledFor = 0
+          renderer.render(scene, camera)
+          raf = window.requestAnimationFrame(animate)
+          return
+        }
+
         const allStable = dice.every((die, i) => {
           if (currentLocked[i]) return true
           if (die.body.sleepState === CANNON.Body.SLEEPING) return true
-          const linearStill = die.body.velocity.lengthSquared() < 0.02
-          const angularStill = die.body.angularVelocity.lengthSquared() < 0.03
+          const linearStill = die.body.velocity.lengthSquared() < activeRollProfile.linearStillThreshold
+          const angularStill = die.body.angularVelocity.lengthSquared() < activeRollProfile.angularStillThreshold
           return linearStill && angularStill && die.body.position.y <= dieHalf + 0.08
         })
 
         if (allStable) {
           settledFor += dt
-          if (settledFor > 0.26) {
-            rollingRef.current = false
-            setIsRolling(false)
-            const faceValues = dice.map((die) => readTopFace(die.body))
-            setResults(faceValues)
-            const nextAttempt = attemptRef.current + 1
-            if (nextAttempt >= effectiveMaxAttemptsRef.current) {
-              const allLocked = Array(diceCount).fill(true)
-              setLocked(allLocked)
-              lockedRef.current = allLocked
-              dice.forEach((die) => {
-                const materials = die.mesh.material as THREE.MeshStandardMaterial[]
-                materials.forEach((m) => m.color.set(LOCKED_COLOR))
-              })
-            }
-            setAttempt((prev) => prev + 1)
-            const total = faceValues.reduce((sum, v) => sum + v, 0)
-            onDiceResultRef.current?.({
-              total,
-              values: faceValues,
-              attempt: nextAttempt,
-            })
+          if (settledFor > activeRollProfile.settleHoldSeconds) {
+            finalizeRoll()
           }
         } else {
           settledFor = 0
@@ -611,10 +776,13 @@ export function DiceThrowRenderer({
   const turnOver = attempt >= effectiveMaxAttempts && !isRolling
   const canThrow = !isRolling && (attempt < effectiveMaxAttempts || hasPendingPlacement)
   const canLock = attempt >= 1 && attempt < effectiveMaxAttempts
+  const sortedIndicators = results
+    .map((value, index) => ({ value, index, isLocked: locked[index] }))
+    .sort((a, b) => a.value - b.value || a.index - b.index)
 
   return (
     <div className="flex h-full w-full flex-col">
-      <div className="min-h-0 flex-1 overflow-hidden rounded-none bg-[#1a7a4a]">
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-none bg-[#1a7a4a]">
         <div ref={hostRef} className="h-full w-full" />
       </div>
 
@@ -623,32 +791,37 @@ export function DiceThrowRenderer({
           {results.length > 0 ? (
             <>
               <div className="flex items-center gap-1">
-                {results.map((value, i) => (
+                {sortedIndicators.map((die) => (
                   <button
                     type="button"
-                    key={i}
-                    onClick={() => canLock && toggleLock(i)}
+                    key={die.index}
+                    onClick={() => canLock && toggleLock(die.index)}
                     className={`grid h-6 w-6 select-none place-items-center rounded-md border text-[11px] font-bold shadow-sm transition-colors ${
-                      locked[i]
+                      die.isLocked
                         ? "border-red-400 bg-red-100 text-red-800"
                         : "border-slate-300 bg-white text-slate-800"
                     } ${canLock ? "cursor-pointer touch-manipulation hover:border-slate-400 active:scale-95" : ""}`}
-                    aria-label={`Die ${i + 1}`}
+                    aria-label={`Die ${die.index + 1}`}
                   >
-                    {value}
+                    {die.value}
                   </button>
                 ))}
               </div>
-              <span className="text-[11px] font-medium text-slate-400">=</span>
-              <span className="text-base font-bold text-slate-800">{total}</span>
               {attempt > 0 && (
-                <span className="ml-1 inline-flex h-5 items-center rounded-full bg-slate-200 px-2 text-[10px] font-bold text-slate-600">
+                <span className="ml-1 inline-flex h-5 w-[58px] items-center justify-center rounded-full bg-slate-200 px-1 text-[10px] font-bold tabular-nums text-slate-600">
                   {turnOver && !hasPendingPlacement ? "PLACE" : `${attempt} of ${effectiveMaxAttempts}`}
                 </span>
               )}
-              {isRolling && (
-                <span className="text-[11px] font-medium text-slate-500">Rolling...</span>
-              )}
+              <div className="pointer-events-none absolute top-full left-0 mt-0.5 flex items-center gap-2">
+                {isRolling ? (
+                  <span className="text-[11px] font-medium text-slate-500">Rolling...</span>
+                ) : (
+                  <>
+                    <span className="text-[11px] font-medium text-slate-400">=</span>
+                    <span className="text-base font-bold leading-none text-slate-800">{total}</span>
+                  </>
+                )}
+              </div>
             </>
           ) : (
             <>
@@ -660,19 +833,29 @@ export function DiceThrowRenderer({
                   />
                 ))}
               </div>
-              <span className="text-[11px] font-medium text-transparent">=</span>
-              <span className="text-base font-bold text-transparent">00</span>
-              <span className="ml-1 inline-flex h-5 items-center rounded-full bg-transparent px-2 text-[10px] font-bold text-transparent">
-                0 of 0
-              </span>
-              <span className="absolute top-1/2 left-0 -translate-y-1/2 text-[11px] font-medium text-slate-500">
-                {isRolling ? "Rolling..." : ""}
-              </span>
+              <div className="pointer-events-none absolute top-full left-0 mt-0.5 flex items-center gap-2">
+                {isRolling ? (
+                  <span className="text-[11px] font-medium text-slate-500">Rolling...</span>
+                ) : (
+                  <>
+                    <span className="text-[11px] font-medium text-transparent">=</span>
+                    <span className="text-base font-bold leading-none text-transparent">00</span>
+                  </>
+                )}
+              </div>
             </>
           )}
         </div>
-
-        <div className="flex items-center gap-3" />
+        <button
+          type="button"
+          onClick={() => onRollSpeedModeChange?.(rollSpeedMode === "fast" ? "normal" : "fast")}
+          className="absolute right-[4.5rem] top-1/2 inline-flex h-6 min-w-[58px] -translate-y-1/2 items-center justify-center rounded-full border border-slate-300 bg-white px-3 text-[10px] font-semibold tracking-[0.05em] text-slate-700 uppercase shadow-sm transition-colors hover:border-slate-400 hover:text-slate-900"
+          style={{ fontFamily: "'Inter', sans-serif" }}
+          aria-label={`Switch roll speed mode to ${rollSpeedMode === "fast" ? "slow" : "fast"}`}
+          title={`Switch to ${rollSpeedMode === "fast" ? "SLOW" : "FAST"}`}
+        >
+          {rollSpeedMode === "fast" ? "SLOW" : "FAST"}
+        </button>
         {(!turnOver || hasPendingPlacement) && (
           <button
             aria-disabled={!canThrow}
@@ -747,16 +930,54 @@ function randomRange(min: number, max: number): number {
   return min + Math.random() * (max - min)
 }
 
+function randomDieValue(): number {
+  return 1 + Math.floor(Math.random() * 6)
+}
+
+function sampleFastSpawnPoint({
+  minX,
+  maxX,
+  minZ,
+  maxZ,
+  existing,
+  minDistance,
+}: {
+  minX: number
+  maxX: number
+  minZ: number
+  maxZ: number
+  existing: Array<{ x: number; z: number }>
+  minDistance: number
+}): { x: number; z: number } {
+  const attempts = 18
+  for (let i = 0; i < attempts; i += 1) {
+    const candidate = {
+      x: randomRange(minX, maxX),
+      z: randomRange(minZ, maxZ),
+    }
+    const tooClose = existing.some((p) => Math.hypot(p.x - candidate.x, p.z - candidate.z) < minDistance)
+    if (!tooClose) return candidate
+  }
+
+  return {
+    x: randomRange(minX, maxX),
+    z: randomRange(minZ, maxZ),
+  }
+}
+
+function setDieTopFace(body: CANNON.Body, value: number): void {
+  const index = FACE_VALUE_BY_MATERIAL_INDEX.indexOf(value)
+  const faceNormal = FACE_NORMALS[index >= 0 ? index : 0]
+  const from = new THREE.Vector3(faceNormal.x, faceNormal.y, faceNormal.z)
+  const up = new THREE.Vector3(0, 1, 0)
+  const align = new THREE.Quaternion().setFromUnitVectors(from, up)
+  const twist = new THREE.Quaternion().setFromAxisAngle(up, randomRange(0, Math.PI * 2))
+  const q = twist.multiply(align)
+  body.quaternion.set(q.x, q.y, q.z, q.w)
+}
+
 /** Read the top face value of a settled die by checking which face normal points most upward. */
 function readTopFace(body: CANNON.Body): number {
-  const faceNormals = [
-    new CANNON.Vec3(1, 0, 0),
-    new CANNON.Vec3(-1, 0, 0),
-    new CANNON.Vec3(0, 1, 0),
-    new CANNON.Vec3(0, -1, 0),
-    new CANNON.Vec3(0, 0, 1),
-    new CANNON.Vec3(0, 0, -1),
-  ]
   const faceValues = FACE_VALUE_BY_MATERIAL_INDEX
 
   let bestDot = -Infinity
@@ -764,7 +985,7 @@ function readTopFace(body: CANNON.Body): number {
   const worldNormal = new CANNON.Vec3()
 
   for (let i = 0; i < 6; i++) {
-    body.quaternion.vmult(faceNormals[i], worldNormal)
+    body.quaternion.vmult(FACE_NORMALS[i], worldNormal)
     if (worldNormal.y > bestDot) {
       bestDot = worldNormal.y
       bestValue = faceValues[i]

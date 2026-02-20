@@ -9,7 +9,7 @@ import {
   type RowId,
   type YamSheet,
 } from "./components/YamScorecard"
-import { DiceThrowRenderer } from "./components/renderers/three/DiceThrowRenderer"
+import { DiceThrowRenderer, type RollSpeedMode } from "./components/renderers/three/DiceThrowRenderer"
 const COLUMN_ORDER: ColumnId[] = ["down", "up", "desordem", "seco"]
 const DOWN_ORDER: RowId[] = [...PLAYABLE_ROWS]
 const UP_ORDER: RowId[] = [...PLAYABLE_ROWS].reverse()
@@ -28,6 +28,7 @@ function App() {
   const [rollResult, setRollResult] = useState<RollResult | null>(null)
   const [hasDiceResult, setHasDiceResult] = useState(false)
   const [pendingPlacement, setPendingPlacement] = useState<Placement | null>(null)
+  const [rollSpeedMode, setRollSpeedMode] = useState<RollSpeedMode>("normal")
 
   const currentAttempt = rollResult?.attempt ?? 0
 
@@ -196,6 +197,8 @@ function App() {
                 forceSingleAttempt={onlySecoRemaining}
                 hasPendingPlacement={pendingPlacement != null}
                 onCommitPlacement={commitPlacement}
+                rollSpeedMode={rollSpeedMode}
+                onRollSpeedModeChange={setRollSpeedMode}
               />
             </div>
           )}
