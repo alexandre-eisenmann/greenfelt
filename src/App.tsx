@@ -139,7 +139,7 @@ function App() {
         {/* Left column: info panel + scorecard
             Mobile: order-2 → appears below the dice
             Desktop: order-1 → left side */}
-        <div className="order-2 ml-[25px] flex flex-col items-start gap-0 pl-2 lg:order-1 lg:ml-0 lg:shrink-0 lg:items-start lg:gap-5 lg:pl-0">
+        <div className="order-2 ml-[5px] flex flex-col items-start gap-0 pl-2 lg:order-1 lg:ml-0 lg:shrink-0 lg:items-start lg:gap-5 lg:pl-0">
           <YamScorecard
             sheet={sheet}
             openCells={openCells}

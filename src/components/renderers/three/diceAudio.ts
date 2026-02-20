@@ -17,12 +17,25 @@ export class DiceAudio {
   private ctx: AudioContext | null = null
   private masterGain: GainNode | null = null
   private lastPlayTime = 0
+  private primed = false
 
   /** Explicitly unlock/resume audio on user gesture (important on mobile browsers). */
   unlock(): void {
     const ctx = this.ensureContext()
     if (ctx.state === "suspended") {
       void ctx.resume()
+    }
+    // iOS/Safari can require a real node start in a user gesture.
+    if (!this.primed) {
+      this.primed = true
+      try {
+        const silent = ctx.createBufferSource()
+        silent.buffer = ctx.createBuffer(1, 1, ctx.sampleRate)
+        silent.connect(ctx.destination)
+        silent.start(0)
+      } catch {
+        // best effort only
+      }
     }
   }
 
@@ -32,9 +45,6 @@ export class DiceAudio {
       this.masterGain = this.ctx.createGain()
       this.masterGain.gain.value = 0.55
       this.masterGain.connect(this.ctx.destination)
-    }
-    if (this.ctx.state === "suspended") {
-      this.ctx.resume()
     }
     return this.ctx
   }
@@ -48,7 +58,10 @@ export class DiceAudio {
     this.lastPlayTime = now
 
     const ctx = this.ensureContext()
-    if (ctx.state !== "running") return
+    if (ctx.state !== "running") {
+      this.unlock()
+      if (ctx.state !== "running") return
+    }
     const master = this.masterGain!
 
     // 0 → 1 normalised intensity

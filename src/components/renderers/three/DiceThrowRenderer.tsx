@@ -271,6 +271,10 @@ export function DiceThrowRenderer({
     // ── collision audio ──────────────────────────────────────────
     const audio = new DiceAudio()
     const diceBodySet = new Set(dice.map((d) => d.body))
+    const unlockAudio = () => audio.unlock()
+    window.addEventListener("pointerdown", unlockAudio, { passive: true })
+    window.addEventListener("touchstart", unlockAudio, { passive: true })
+    window.addEventListener("click", unlockAudio, { passive: true })
 
     dice.forEach((die) => {
       die.body.addEventListener("collide", (event: { body: CANNON.Body; contact: CANNON.ContactEquation }) => {
@@ -574,6 +578,9 @@ export function DiceThrowRenderer({
       window.cancelAnimationFrame(raf)
       observer.disconnect()
       window.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("pointerdown", unlockAudio)
+      window.removeEventListener("touchstart", unlockAudio)
+      window.removeEventListener("click", unlockAudio)
       renderer.domElement.removeEventListener("pointerdown", onPointerDown)
       audio.dispose()
       host.removeChild(renderer.domElement)
