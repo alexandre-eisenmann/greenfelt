@@ -157,6 +157,8 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
     renderer.domElement.style.width = "100%"
     renderer.domElement.style.height = "100%"
     renderer.domElement.style.display = "block"
+    renderer.domElement.style.touchAction = "manipulation"
+    renderer.domElement.style.userSelect = "none"
     host.appendChild(renderer.domElement)
 
     const ambient = new THREE.AmbientLight(0xffffff, 0.85)
@@ -594,27 +596,29 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
         <div ref={hostRef} className="h-full w-full" />
       </div>
 
-      <div className="flex items-center justify-between px-2 py-3" style={{ fontFamily: "'Inter', sans-serif" }}>
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-2 py-0" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="flex items-center gap-2.5">
           {results.length > 0 && !isRolling ? (
             <>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 {results.map((value, i) => (
-                  <span
+                  <button
+                    type="button"
                     key={i}
                     onClick={() => canLock && toggleLock(i)}
-                    className={`grid h-8 w-8 select-none place-items-center rounded-lg border text-sm font-bold shadow-sm transition-colors ${
+                    className={`grid h-6 w-6 select-none place-items-center rounded-md border text-[11px] font-bold shadow-sm transition-colors ${
                       locked[i]
                         ? "border-red-400 bg-red-100 text-red-800"
                         : "border-slate-300 bg-white text-slate-800"
-                    } ${canLock ? "cursor-pointer hover:border-slate-400" : ""}`}
+                    } ${canLock ? "cursor-pointer touch-manipulation hover:border-slate-400 active:scale-95" : ""}`}
+                    aria-label={`Die ${i + 1}`}
                   >
                     {value}
-                  </span>
+                  </button>
                 ))}
               </div>
-              <span className="text-sm font-medium text-slate-400">=</span>
-              <span className="text-lg font-bold text-slate-800">{total}</span>
+              <span className="text-[11px] font-medium text-slate-400">=</span>
+              <span className="text-base font-bold text-slate-800">{total}</span>
             </>
           ) : (
             <span className="text-sm font-medium text-slate-400">
@@ -623,9 +627,9 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
           )}
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {!isRolling && attempt > 0 && (
-            <span className="text-sm font-semibold text-slate-400">
+            <span className="text-xs font-semibold text-slate-400">
               {turnOver && !hasPendingPlacement ? "Place on board" : `${attempt} of ${maxAttempts}`}
             </span>
           )}
@@ -640,14 +644,14 @@ export function DiceThrowRenderer({ diceCount = 5, maxAttempts = 3, onDiceResult
                   throwDiceRef.current()
                 }
               }}
-              className="w-20 rounded-full border border-slate-300 bg-white/90 py-2 text-center text-xs font-bold uppercase tracking-widest text-slate-700 shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+              className="w-20 touch-manipulation rounded-full border border-slate-300 bg-white/90 py-1 text-center text-[10px] font-bold uppercase tracking-widest text-slate-700 shadow-sm transition hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
             >
               Play
             </button>
           ) : hasPendingPlacement ? (
             <button
               onClick={commitAndReset}
-              className="w-24 rounded-full border border-emerald-400 bg-emerald-50 py-2 text-center text-xs font-bold uppercase tracking-widest text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+              className="w-24 touch-manipulation rounded-full border border-emerald-400 bg-emerald-50 py-1 text-center text-[10px] font-bold uppercase tracking-widest text-emerald-700 shadow-sm transition hover:bg-emerald-100 active:scale-[0.98]"
             >
               Confirm
             </button>

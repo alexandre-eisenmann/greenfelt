@@ -10,7 +10,6 @@ import {
   type YamSheet,
 } from "./components/YamScorecard"
 import { DiceThrowRenderer } from "./components/renderers/three/DiceThrowRenderer"
-import { GameInfoPanel } from "./components/GameInfoPanel"
 const COLUMN_ORDER: ColumnId[] = ["down", "up", "desordem", "seco"]
 const DOWN_ORDER: RowId[] = [...PLAYABLE_ROWS]
 const UP_ORDER: RowId[] = [...PLAYABLE_ROWS].reverse()
@@ -129,19 +128,13 @@ function App() {
   }, [])
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(140deg,#f5f7fb_0%,#ebf0f7_50%,#e1e8f2_100%)] px-4 py-6 sm:px-8 sm:py-8">
-      <section className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 lg:flex-row lg:items-start lg:gap-8">
+    <main className="min-h-screen touch-manipulation bg-white px-1 py-1 sm:px-8 sm:py-8">
+      <section className="mx-auto flex w-full max-w-[1400px] flex-col gap-0 lg:flex-row lg:items-start lg:gap-8">
 
         {/* Left column: info panel + scorecard
             Mobile: order-2 → appears below the dice
             Desktop: order-1 → left side */}
-        <div className="order-2 flex flex-col gap-5 lg:order-1 lg:shrink-0">
-          <GameInfoPanel
-            sheet={sheet}
-            totalScore={totalScore}
-            rollResult={rollResult}
-            maxAttempts={3}
-          />
+        <div className="order-2 flex flex-col items-center gap-0 lg:order-1 lg:shrink-0 lg:items-start lg:gap-5">
           <YamScorecard
             sheet={sheet}
             openCells={openCells}
@@ -154,7 +147,7 @@ function App() {
         {/* Right column: dice / game-over
             Mobile: order-1 → appears at the top
             Desktop: order-2 → right side, sticky */}
-        <div className="order-1 min-w-0 flex-1 lg:order-2 lg:sticky lg:top-8">
+        <div className="order-1 min-w-0 flex-1 lg:order-2 lg:sticky lg:top-8 lg:pt-[30px]">
           {gameOver ? (
             <div
               className="flex min-h-[320px] flex-col items-center justify-center gap-6 rounded-3xl border border-[#ccc8c0] bg-[#f7f4ef] px-8 py-10 lg:h-[60vh]"
@@ -180,7 +173,7 @@ function App() {
               </button>
             </div>
           ) : (
-            <div className="h-[46vh] min-h-[280px] min-w-0 lg:h-[62vh]">
+            <div className="h-[30vh] min-h-[180px] min-w-0 sm:h-[38vh] lg:h-[421px]">
               <DiceThrowRenderer
                 diceCount={5}
                 maxAttempts={3}

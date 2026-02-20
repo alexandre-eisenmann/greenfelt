@@ -102,34 +102,36 @@ export function YamScorecard({
   const grandTotal = COLUMNS.reduce((sum, column) => sum + totalsByColumn[column.id].combined, 0)
 
   return (
-    <div className="w-[376px] max-w-full shrink-0">
+    <div className="w-[340px] max-w-full shrink-0 sm:w-[360px] lg:w-[376px]">
       <table
-        className="w-full table-fixed border-separate border-spacing-[2px] bg-[#f2f2f2] text-center"
+        className="w-full table-fixed border-separate border-spacing-[2px] bg-white text-center"
         style={{ fontFamily: "'Inter', sans-serif" }}
       >
         <colgroup>
-          <col className="w-[43px]" />
-          <col className="w-[43px]" />
-          <col className="w-[65px]" />
-          <col className="w-[65px]" />
-          <col className="w-[65px]" />
-          <col className="w-[65px]" />
+          <col className="w-[38px]" />
+          <col className="w-[38px]" />
+          <col className="w-[58px]" />
+          <col className="w-[58px]" />
+          <col className="w-[58px]" />
+          <col className="w-[58px]" />
         </colgroup>
         <thead>
           <tr>
-            <th className="h-10 rounded-md border border-slate-700 bg-white px-2 text-base leading-none font-bold text-slate-800" colSpan={2}>
+            <th className="h-7 px-2" colSpan={2}>
             </th>
             {COLUMNS.map((column) => (
-              <th key={column.id} className="h-10 rounded-md border border-slate-700 bg-white px-2 text-xl leading-none font-bold text-slate-800">
+              <th key={column.id} className="h-7 px-2 text-base leading-none font-bold text-slate-800">
                 {column.id === "down" ? (
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" className="mx-auto">
+                  <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" className="mx-auto">
                     <polyline points="6,9 12,15 18,9" />
                   </svg>
                 ) : column.id === "up" ? (
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" className="mx-auto">
+                  <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" className="mx-auto">
                     <polyline points="6,15 12,9 18,15" />
                   </svg>
-                ) : column.title}
+                ) : (
+                  <span className="text-[0.9rem] font-semibold tracking-[0.08em]">{column.title}</span>
+                )}
               </th>
             ))}
           </tr>
@@ -137,8 +139,8 @@ export function YamScorecard({
         <tbody>
           {ROW_LABELS.slice(0, 6).map((row) => (
             <tr key={row.id}>
-              <td className="h-9 border border-slate-700 bg-white px-1 text-xl leading-none font-bold text-slate-900">{row.left}</td>
-              <td className="h-9 border border-slate-700 bg-white px-1 text-lg leading-none font-semibold text-slate-900">{row.label}</td>
+              <td className="h-7 bg-transparent px-1"></td>
+              <td className="h-7 border border-slate-700 bg-white px-1 text-sm leading-none font-semibold text-slate-900">{row.label}</td>
               {COLUMNS.map((column) => renderPlayableCell({
                 columnId: column.id,
                 rowId: row.id,
@@ -152,34 +154,43 @@ export function YamScorecard({
           ))}
 
           <tr>
-            <td className="h-9 border border-slate-700 bg-white px-1 text-[11px] leading-none font-bold uppercase tracking-wide text-slate-700" colSpan={2}>
-              total
+            <td className="h-4 bg-transparent px-1"></td>
+            <td className="h-4 bg-transparent px-1 text-[8px] leading-none font-bold tracking-[0.1em] text-slate-500">
+              BONUS
             </td>
             {COLUMNS.map((column) => {
               const totals = totalsByColumn[column.id]
               return (
-                <td key={column.id} className="h-9 border border-slate-700 bg-white px-1">
-                  <div className="flex h-full items-center justify-center">
-                    <div className="relative inline-block">
-                      <span style={{ fontFamily: "'Kalam', cursive", fontWeight: 700, fontSize: "1.35rem", paddingTop: "4px", color: "#cbd5e1" }}>
-                        {toCellValue(totals.secondTotal)}
-                      </span>
-                      {totals.upperComplete && totals.bonus > 0 && (
-                        <span className="absolute top-px -right-5 text-[9px] font-bold leading-none text-slate-800">
-                          +30
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                <td
+                  key={column.id}
+                  className="h-4 bg-transparent px-1 align-middle text-[9px] font-bold text-slate-500"
+                  style={
+                    totals.bonus > 0
+                      ? { fontFamily: "'Kalam', cursive", fontWeight: 700, fontSize: "0.78rem" }
+                      : undefined
+                  }
+                >
+                  {totals.bonus > 0 ? "30" : ""}
                 </td>
               )
             })}
           </tr>
 
-          {ROW_LABELS.slice(6).map((row) => (
+          {ROW_LABELS.slice(6).map((row) => {
+            const isBonusHint = row.left !== "X"
+            return (
             <tr key={row.id}>
-              <td className="h-9 border border-slate-700 bg-white px-1 text-xl leading-none font-bold text-slate-900">{row.left}</td>
-              <td className="h-9 border border-slate-700 bg-white px-1 text-xs leading-none font-semibold text-slate-900">{row.label}</td>
+              <td
+                className={
+                  isBonusHint
+                    ? "h-7 bg-transparent px-1 text-[11px] leading-none font-semibold tracking-[0.12em] text-slate-500"
+                    : "h-7 bg-transparent px-1"
+                }
+                style={isBonusHint ? { fontFamily: "'Kalam', cursive" } : undefined}
+              >
+                {isBonusHint ? `+${row.left}` : ""}
+              </td>
+              <td className="h-7 border border-slate-700 bg-white px-1 text-[10px] leading-none font-semibold text-slate-900">{row.label}</td>
               {COLUMNS.map((column) => renderPlayableCell({
                 columnId: column.id,
                 rowId: row.id,
@@ -190,25 +201,19 @@ export function YamScorecard({
                 onCellClick,
               }))}
             </tr>
-          ))}
+            )
+          })}
 
           <tr>
-            <td className="h-9 border border-slate-700 bg-white px-1 text-[11px] leading-none font-bold uppercase tracking-wide text-slate-700" colSpan={2}>
-              total
-            </td>
-            {COLUMNS.map((column) => (
-              <td key={column.id} className="h-9 border border-slate-700 bg-white px-1 align-middle" style={{ fontFamily: "'Kalam', cursive", fontWeight: 700, fontSize: "1.35rem", paddingTop: "4px", color: "#cbd5e1" }}>
-                {toCellValue(totalsByColumn[column.id].thirdTotal)}
-              </td>
-            ))}
-          </tr>
-
-
-          <tr>
-            <td className="h-9 border border-slate-700 bg-white px-1 text-lg leading-none font-bold text-slate-900" colSpan={2}>
+            <td className="h-7 bg-transparent px-1" colSpan={1}></td>
+            <td className="h-7 bg-transparent px-1 align-middle text-left text-xs font-bold tracking-[0.1em] text-slate-700" colSpan={3}>
               TOTAL
             </td>
-            <td className="h-9 border border-slate-700 bg-white px-1 align-middle" colSpan={4} style={{ fontFamily: "'Kalam', cursive", fontWeight: 700, fontSize: "1.35rem", paddingTop: "4px", color: "#cbd5e1" }}>
+            <td
+              className="h-7 rounded-md bg-transparent px-3 align-middle text-right text-xl font-semibold text-slate-500"
+              style={{ fontFamily: "'Kalam', cursive", lineHeight: 1 }}
+              colSpan={2}
+            >
               {toCellValue(grandTotal)}
             </td>
           </tr>
@@ -258,19 +263,19 @@ function renderPlayableCell({
         if (!clickable || !isOpen || locked) return
         onCellClick(columnId, rowId)
       }}
-      style={(isPending || locked) && !isCrossed ? { fontFamily: "'Kalam', cursive", fontWeight: 700, fontSize: "1.35rem", verticalAlign: "middle", paddingTop: "4px" } : undefined}
-      className={`h-9 border border-slate-700 px-1 text-base leading-none font-bold ${
+      style={(isPending || locked) && !isCrossed ? { fontFamily: "'Kalam', cursive", fontWeight: 700, fontSize: "0.95rem", verticalAlign: "middle", paddingTop: "1px" } : undefined}
+      className={`h-7 touch-manipulation select-none border border-slate-700 px-1 text-xs leading-none font-bold ${
         isPending
-          ? "bg-emerald-100 text-emerald-900"
+          ? "bg-white text-emerald-900"
           : locked
             ? "bg-white text-slate-900"
             : isOpen && clickable
-              ? "cursor-pointer bg-blue-50 text-blue-900 hover:bg-blue-100"
-              : "bg-white text-slate-400"
+              ? "cursor-pointer bg-white text-slate-900 hover:bg-slate-50 active:bg-slate-100"
+              : "bg-[#f3f4f6] text-slate-400"
       }`}
     >
       {isCrossed ? (
-        <svg viewBox="0 0 50 30" className="w-full h-full" style={{ display: "block", padding: "2px 4px" }}>
+        <svg viewBox="0 0 50 30" className="h-full w-full" style={{ display: "block", padding: "2px 3px" }}>
           <path d="M 4,3 C 16,10 30,18 46,27" stroke={strokeColor} strokeWidth="2.8" strokeLinecap="round" fill="none" />
           <path d="M 46,3 C 33,11 19,18 4,27" stroke={strokeColor} strokeWidth="2.8" strokeLinecap="round" fill="none" />
         </svg>
