@@ -707,6 +707,23 @@ export function DiceThrowRenderer({
           activeRollProfile.maxRollSeconds != null &&
           rollElapsed >= activeRollProfile.maxRollSeconds
         ) {
+          // Snap unlocked dice to their current top face so the visual result
+          // matches the chip values read by finalizeRoll().
+          dice.forEach((die, i) => {
+            if (currentLocked[i]) return
+            die.body.velocity.set(0, 0, 0)
+            die.body.angularVelocity.set(0, 0, 0)
+            die.body.position.y = dieHalf
+            setDieTopFace(die.body, readTopFace(die.body))
+            die.body.sleep()
+            die.mesh.position.set(die.body.position.x, die.body.position.y, die.body.position.z)
+            die.mesh.quaternion.set(
+              die.body.quaternion.x,
+              die.body.quaternion.y,
+              die.body.quaternion.z,
+              die.body.quaternion.w,
+            )
+          })
           finalizeRoll()
           settledFor = 0
           renderer.render(scene, camera)
