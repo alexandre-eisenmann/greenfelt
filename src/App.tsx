@@ -141,7 +141,7 @@ function App() {
   }, [])
 
   return (
-    <main className="min-h-screen touch-manipulation bg-white px-0 py-0">
+    <main className="min-h-screen touch-pan-y overflow-x-hidden bg-white px-0 py-0">
       <section className="mx-auto flex w-full max-w-[1400px] flex-col gap-0 lg:flex-row lg:items-start lg:gap-8">
 
         {/* Left column: info panel + scorecard
