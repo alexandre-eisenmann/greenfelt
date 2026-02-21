@@ -60,9 +60,9 @@ const ROW_LABELS: Array<{ id: RowId; left: string; label: string }> = [
   { id: "full", left: "30", label: "F" },
   { id: "seqLow", left: "35", label: "S-" },
   { id: "seqHigh", left: "40", label: "S+" },
-  { id: "min", left: "X", label: "MIN" },
-  { id: "max", left: "X", label: "MAX" },
-  { id: "yam", left: "50", label: "YAM" },
+  { id: "min", left: "X", label: "-" },
+  { id: "max", left: "X", label: "+" },
+  { id: "yam", left: "50", label: "Y" },
 ]
 
 export type ColumnTotals = {
@@ -104,23 +104,23 @@ export function YamScorecard({
   return (
     <div className="w-[340px] max-w-full shrink-0 sm:w-[360px] lg:w-[376px]">
       <table
-        className="w-full table-fixed border-separate border-spacing-[2px] bg-white text-center"
-        style={{ fontFamily: "'Inter', sans-serif" }}
+        className="w-full table-fixed border-collapse bg-white text-center"
+        style={{ fontFamily: "'Atkinson Hyperlegible', 'Source Sans 3', 'Inter', sans-serif" }}
       >
         <colgroup>
-          <col className="w-[38px]" />
-          <col className="w-[38px]" />
+          <col className="w-[44px]" />
           <col className="w-[58px]" />
           <col className="w-[58px]" />
           <col className="w-[58px]" />
           <col className="w-[58px]" />
+          <col className="w-[36px]" />
         </colgroup>
         <thead>
           <tr>
-            <th className="h-7 px-2" colSpan={2}>
+            <th className="h-7 px-2">
             </th>
             {COLUMNS.map((column) => (
-              <th key={column.id} className="h-7 px-2 text-base leading-none font-bold text-slate-800">
+              <th key={column.id} className="h-7 px-2 text-[0.98rem] leading-none font-semibold text-slate-600">
                 {column.id === "down" ? (
                   <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" className="mx-auto">
                     <polyline points="6,9 12,15 18,9" />
@@ -130,17 +130,17 @@ export function YamScorecard({
                     <polyline points="6,15 12,9 18,15" />
                   </svg>
                 ) : (
-                  <span className="text-[0.9rem] font-semibold tracking-[0.08em]">{column.title}</span>
+                  <span className="text-[0.98rem] font-semibold tracking-[0.08em]">{column.title}</span>
                 )}
               </th>
             ))}
+            <th className="h-7 px-1"></th>
           </tr>
         </thead>
         <tbody>
           {ROW_LABELS.slice(0, 6).map((row) => (
             <tr key={row.id}>
-              <td className="h-7 bg-transparent px-1"></td>
-              <td className="h-7 border border-slate-700 bg-white px-1 text-sm leading-none font-semibold text-slate-900">{row.label}</td>
+              <td className="h-7 bg-transparent pl-1 pr-3 text-right text-[0.98rem] leading-none font-semibold tracking-[0.02em] text-slate-500">{row.label}</td>
               {COLUMNS.map((column) => renderPlayableCell({
                 columnId: column.id,
                 rowId: row.id,
@@ -150,47 +150,33 @@ export function YamScorecard({
                 pendingPlacement,
                 onCellClick,
               }))}
+              <td className="h-7 bg-transparent px-1"></td>
             </tr>
           ))}
 
           <tr>
-            <td className="h-4 bg-transparent px-1"></td>
-            <td className="h-4 bg-transparent px-1 text-[8px] leading-none font-bold tracking-[0.1em] text-slate-500">
-              BONUS
-            </td>
+            <td className="h-6 bg-transparent px-1"></td>
             {COLUMNS.map((column) => {
               const totals = totalsByColumn[column.id]
               return (
                 <td
                   key={column.id}
-                  className="h-4 bg-transparent px-1 align-middle text-[9px] font-bold text-slate-500"
-                  style={
-                    totals.bonus > 0
-                      ? { fontFamily: "'Kalam', cursive", fontWeight: 700, fontSize: "0.78rem" }
-                      : undefined
-                  }
+                  className="h-6 bg-transparent px-1 align-middle text-[0.9rem] font-semibold tabular-nums text-slate-500"
                 >
                   {totals.bonus > 0 ? "30" : ""}
                 </td>
               )
             })}
+            <td className="h-6 bg-transparent pl-3 pr-0 text-left text-[0.68rem] leading-none font-semibold tracking-[0.08em] text-slate-500">
+              BONUS
+            </td>
           </tr>
 
           {ROW_LABELS.slice(6).map((row) => {
             const isBonusHint = row.left !== "X"
             return (
             <tr key={row.id}>
-              <td
-                className={
-                  isBonusHint
-                    ? "h-7 bg-transparent px-1 text-[11px] leading-none font-semibold tracking-[0.12em] text-slate-500"
-                    : "h-7 bg-transparent px-1"
-                }
-                style={isBonusHint ? { fontFamily: "'Kalam', cursive" } : undefined}
-              >
-                {isBonusHint ? `+${row.left}` : ""}
-              </td>
-              <td className="h-7 border border-slate-700 bg-white px-1 text-[10px] leading-none font-semibold text-slate-900">{row.label}</td>
+              <td className="h-7 bg-transparent pl-1 pr-3 text-right text-[0.98rem] leading-none font-semibold tracking-[0.02em] text-slate-500">{row.label}</td>
               {COLUMNS.map((column) => renderPlayableCell({
                 columnId: column.id,
                 rowId: row.id,
@@ -200,25 +186,32 @@ export function YamScorecard({
                 pendingPlacement,
                 onCellClick,
               }))}
+              <td
+                className={
+                  isBonusHint
+                    ? "h-7 bg-transparent pl-3 pr-0 text-left text-[0.68rem] leading-none font-semibold tabular-nums tracking-[0.02em] text-slate-500"
+                    : "h-7 bg-transparent pl-3 pr-0 text-left"
+                }
+              >
+                {isBonusHint ? `+${row.left}` : ""}
+              </td>
             </tr>
             )
           })}
 
-          <tr>
-            <td className="h-7 bg-transparent px-1" colSpan={1}></td>
-            <td className="h-7 bg-transparent px-1 align-middle text-left text-xs font-bold tracking-[0.1em] text-slate-700" colSpan={3}>
-              TOTAL
-            </td>
-            <td
-              className="h-7 rounded-md bg-transparent px-3 align-middle text-right text-xl font-semibold text-slate-500"
-              style={{ fontFamily: "'Kalam', cursive", lineHeight: 1 }}
-              colSpan={2}
-            >
-              {toCellValue(grandTotal)}
-            </td>
-          </tr>
         </tbody>
       </table>
+      <div className="mt-2 flex justify-center">
+        <div
+          className="inline-flex h-6 items-center gap-2 rounded-full border border-slate-400 bg-transparent px-3"
+          style={{ fontFamily: "'Atkinson Hyperlegible', 'Source Sans 3', 'Inter', sans-serif" }}
+        >
+          <span className="text-[0.86rem] font-bold leading-none text-slate-500">TOTAL</span>
+          <span className="inline-block w-[4ch] text-right text-[0.86rem] font-bold leading-none tabular-nums text-slate-950">
+            {toCellValue(grandTotal)}
+          </span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -263,15 +256,15 @@ function renderPlayableCell({
         if (!clickable || !isOpen || locked) return
         onCellClick(columnId, rowId)
       }}
-      style={(isPending || locked) && !isCrossed ? { fontFamily: "'Kalam', cursive", fontWeight: 700, fontSize: "0.95rem", verticalAlign: "middle", paddingTop: "1px" } : undefined}
-      className={`h-7 touch-manipulation select-none border border-slate-700 px-1 text-xs leading-none font-bold ${
+      style={(isPending || locked) && !isCrossed ? { fontWeight: 700, fontSize: "0.98rem", verticalAlign: "middle", paddingTop: "1px" } : undefined}
+      className={`h-7 touch-manipulation select-none border border-slate-500/70 px-1 text-[0.92rem] leading-none font-semibold transition-colors ${
         isPending
-          ? "bg-white text-emerald-900"
+            ? "bg-emerald-50 text-emerald-950"
           : locked
-            ? "bg-white text-slate-900"
+            ? "bg-white text-slate-950"
             : isOpen && clickable
-              ? "cursor-pointer bg-white text-slate-900 hover:bg-slate-50 active:bg-slate-100"
-              : "bg-[#f3f4f6] text-slate-400"
+              ? "cursor-pointer bg-white text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+              : "bg-slate-100 text-slate-400"
       }`}
     >
       {isCrossed ? (

@@ -985,7 +985,7 @@ export function DiceThrowRenderer({
           )}
         </div>
         {(!turnOver || hasPendingPlacement) && (
-          <div className="absolute right-2 -top-6 z-20 h-14 w-14">
+          <div className="absolute right-2 top-0 z-20 h-14 w-14 translate-y-[12%]">
             {isHoldSlowActive && (
               <>
                 <span
