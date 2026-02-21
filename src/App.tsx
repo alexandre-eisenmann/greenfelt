@@ -141,7 +141,7 @@ function App() {
   }, [])
 
   return (
-    <main className="min-h-screen touch-manipulation bg-white px-0 py-0 sm:px-8 sm:py-8">
+    <main className="min-h-screen touch-manipulation bg-white px-0 py-0">
       <section className="mx-auto flex w-full max-w-[1400px] flex-col gap-0 lg:flex-row lg:items-start lg:gap-8">
 
         {/* Left column: info panel + scorecard
@@ -160,7 +160,7 @@ function App() {
         {/* Right column: dice / game-over
             Mobile: order-1 → appears at the top
             Desktop: order-2 → right side, sticky */}
-        <div className="order-1 min-w-0 flex-1 lg:order-2 lg:sticky lg:top-8 lg:pt-[30px]">
+        <div className="order-1 min-w-0 flex-1 lg:order-2 lg:sticky lg:top-0">
           {gameOver ? (
             <div
               className="flex min-h-[320px] flex-col items-center justify-center gap-6 rounded-3xl border border-[#ccc8c0] bg-[#f7f4ef] px-8 py-10 lg:h-[60vh]"
@@ -186,7 +186,7 @@ function App() {
               </button>
             </div>
           ) : (
-            <div className="h-[24vh] min-h-[150px] min-w-0 sm:h-[34vh] lg:h-[421px]">
+            <div className="h-[24vh] min-h-[150px] min-w-0 sm:h-[34vh] lg:h-[469px]">
               <DiceThrowRenderer
                 diceCount={5}
                 maxAttempts={3}
