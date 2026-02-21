@@ -11,7 +11,7 @@ type DieEntity = {
 }
 
 export type RollSpeedMode = "normal" | "fast"
-const HOLD_TO_SLOW_MS = 500
+const HOLD_TO_SLOW_MS = 200
 
 type DiceThrowProps = {
   diceCount?: number
