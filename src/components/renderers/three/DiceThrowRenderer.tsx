@@ -666,19 +666,6 @@ export function DiceThrowRenderer({
     // Start with an empty table
     parkDice()
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== "Space") return
-      const target = event.target as HTMLElement | null
-      const isTyping =
-        target?.tagName === "INPUT" ||
-        target?.tagName === "TEXTAREA" ||
-        target?.isContentEditable
-      if (isTyping) return
-      event.preventDefault()
-      throwDice()
-    }
-    window.addEventListener("keydown", onKeyDown)
-
     const clock = new THREE.Clock()
     const fixedStep = 1 / 60
     let raf = 0
@@ -810,7 +797,6 @@ export function DiceThrowRenderer({
     return () => {
       window.cancelAnimationFrame(raf)
       observer.disconnect()
-      window.removeEventListener("keydown", onKeyDown)
       window.removeEventListener("pointerdown", unlockAudio)
       window.removeEventListener("touchstart", unlockAudio)
       window.removeEventListener("click", unlockAudio)
@@ -866,21 +852,26 @@ export function DiceThrowRenderer({
     setIsPlayPressed(false)
   }, [clearHoldToSlowTimer])
 
+  const beginPlayPress = useCallback(() => {
+    if (!canThrow || isPlayPressed) return
+    setIsPlayPressed(true)
+    setIsHoldSlowActive(false)
+    holdSlowActivatedRef.current = false
+    clearHoldToSlowTimer()
+    holdToSlowTimerRef.current = window.setTimeout(() => {
+      holdSlowActivatedRef.current = true
+      setIsHoldSlowActive(true)
+    }, HOLD_TO_SLOW_MS)
+  }, [canThrow, clearHoldToSlowTimer, isPlayPressed])
+
   const startPlayPress = useCallback(
     (event: ReactPointerEvent<HTMLButtonElement>) => {
       if (!canThrow || event.button !== 0) return
       event.preventDefault()
-      setIsPlayPressed(true)
-      setIsHoldSlowActive(false)
-      holdSlowActivatedRef.current = false
-      clearHoldToSlowTimer()
-      holdToSlowTimerRef.current = window.setTimeout(() => {
-        holdSlowActivatedRef.current = true
-        setIsHoldSlowActive(true)
-      }, HOLD_TO_SLOW_MS)
+      beginPlayPress()
       event.currentTarget.setPointerCapture(event.pointerId)
     },
-    [canThrow, clearHoldToSlowTimer],
+    [beginPlayPress, canThrow],
   )
 
   const releasePlayPress = useCallback(() => {
@@ -900,6 +891,46 @@ export function DiceThrowRenderer({
       clearHoldToSlowTimer()
     }
   }, [clearHoldToSlowTimer])
+
+  useEffect(() => {
+    const isTypingTarget = (target: EventTarget | null) => {
+      const element = target as HTMLElement | null
+      return (
+        element?.tagName === "INPUT" ||
+        element?.tagName === "TEXTAREA" ||
+        element?.isContentEditable
+      )
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "Space") return
+      if (isTypingTarget(event.target)) return
+      event.preventDefault()
+      if (event.repeat) return
+      beginPlayPress()
+    }
+
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.code !== "Space") return
+      if (isTypingTarget(event.target)) return
+      event.preventDefault()
+      releasePlayPress()
+    }
+
+    const onWindowBlur = () => {
+      resetPlayHoldState()
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    window.addEventListener("keyup", onKeyUp)
+    window.addEventListener("blur", onWindowBlur)
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("keyup", onKeyUp)
+      window.removeEventListener("blur", onWindowBlur)
+    }
+  }, [beginPlayPress, releasePlayPress, resetPlayHoldState])
 
   return (
     <div className="flex h-full w-full flex-col">
