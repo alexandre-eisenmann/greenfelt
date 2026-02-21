@@ -908,7 +908,7 @@ export function DiceThrowRenderer({
       </div>
 
       <div className="relative flex items-center justify-between px-2 py-0" style={{ fontFamily: "'Inter', sans-serif" }}>
-        <div className="relative flex h-8 items-center gap-2 pr-20">
+        <div className="relative flex h-9 items-center gap-1 pr-24">
           {results.length > 0 ? (
             <>
               <div className="flex items-center gap-1">
@@ -917,7 +917,7 @@ export function DiceThrowRenderer({
                     type="button"
                     key={die.index}
                     onClick={() => canLock && toggleLock(die.index)}
-                    className={`grid h-7 w-7 select-none place-items-center rounded-lg border text-base font-bold leading-none transition-colors ${
+                    className={`grid h-8 w-8 select-none place-items-center rounded-lg border text-lg font-bold leading-none transition-colors ${
                       die.isLocked
                         ? "border-red-400 bg-red-100 text-red-800"
                         : "border-slate-300 bg-white text-slate-800"
@@ -928,22 +928,22 @@ export function DiceThrowRenderer({
                   </button>
                 ))}
               </div>
-              <div className="pointer-events-none inline-flex w-[42px] items-center justify-start gap-1">
+              <div className="pointer-events-none inline-flex w-[44px] items-center justify-start gap-0">
                 {isRolling ? (
-                  <span className="inline-flex items-center gap-1 text-slate-500" aria-label="Rolling">
+                  <span className="inline-flex translate-x-[3px] items-center gap-1 text-slate-500" aria-label="Rolling">
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" style={{ animationDelay: "0ms", animationDuration: "900ms" }} />
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" style={{ animationDelay: "150ms", animationDuration: "900ms" }} />
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" style={{ animationDelay: "300ms", animationDuration: "900ms" }} />
                   </span>
                 ) : (
                   <>
-                    <span className="text-sm font-medium text-slate-400">=</span>
+                    <span className="-translate-x-[1px] text-sm font-medium text-slate-400">=</span>
                     <span className="text-lg font-bold leading-none text-slate-800">{total}</span>
                   </>
                 )}
               </div>
               <span
-                className={`ml-1 inline-flex h-6 w-[74px] -translate-x-2 items-center justify-center rounded-full bg-slate-200 px-2 text-xs font-bold tabular-nums text-slate-600 ${
+                className={`ml-1 inline-flex h-6 w-[74px] -translate-x-[15px] items-center justify-center rounded-full bg-slate-200 px-2 text-xs font-bold tabular-nums text-slate-600 ${
                   attempt > 0 ? "" : "opacity-0"
                 }`}
               >
@@ -960,32 +960,32 @@ export function DiceThrowRenderer({
                 {Array.from({ length: 5 }).map((_, i) => (
                   <span
                     key={i}
-                    className="grid h-7 w-7 place-items-center rounded-lg border border-transparent text-base leading-none"
+                    className="grid h-8 w-8 place-items-center rounded-lg border border-transparent text-lg leading-none"
                   />
                 ))}
               </div>
-              <div className="pointer-events-none inline-flex w-[42px] items-center justify-start gap-1">
+              <div className="pointer-events-none inline-flex w-[44px] items-center justify-start gap-0">
                 {isRolling ? (
-                  <span className="inline-flex items-center gap-1 text-slate-500" aria-label="Rolling">
+                  <span className="inline-flex translate-x-[3px] items-center gap-1 text-slate-500" aria-label="Rolling">
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" style={{ animationDelay: "0ms", animationDuration: "900ms" }} />
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" style={{ animationDelay: "150ms", animationDuration: "900ms" }} />
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" style={{ animationDelay: "300ms", animationDuration: "900ms" }} />
                   </span>
                 ) : (
                   <>
-                    <span className="text-sm font-medium text-transparent">=</span>
+                    <span className="-translate-x-[1px] text-sm font-medium text-transparent">=</span>
                     <span className="text-lg font-bold leading-none text-transparent">00</span>
                   </>
                 )}
               </div>
-              <span className="ml-1 inline-flex h-6 w-[74px] -translate-x-2 items-center justify-center rounded-full bg-slate-200 px-2 text-xs font-bold tabular-nums text-slate-600 opacity-0">
+              <span className="ml-1 inline-flex h-6 w-[74px] -translate-x-[15px] items-center justify-center rounded-full bg-slate-200 px-2 text-xs font-bold tabular-nums text-slate-600 opacity-0">
                 0 of 0
               </span>
             </>
           )}
         </div>
         {(!turnOver || hasPendingPlacement) && (
-          <div className="absolute right-[18px] top-0 z-20 h-14 w-14 translate-y-[12%]">
+          <div className="absolute top-[10px] right-[18px] z-20 h-14 w-14 translate-y-[12%]">
             {isHoldSlowActive && (
               <>
                 <span
