@@ -381,7 +381,9 @@ function hasExactlyCount(counts: number[], required: number): boolean {
 
 function isFullHouse(counts: number[]): boolean {
   const grouped = counts.filter((count) => count > 0)
-  return grouped.length === 2 && grouped.includes(3) && grouped.includes(2)
+  const isClassicFullHouse = grouped.length === 2 && grouped.includes(3) && grouped.includes(2)
+  const isFiveOfAKind = grouped.length === 1 && grouped[0] === 5
+  return isClassicFullHouse || isFiveOfAKind
 }
 
 function hasStraight(values: number[], expected: number[]): boolean {
