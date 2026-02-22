@@ -24,6 +24,7 @@ function App() {
   const [initialState] = useState<InitialGameState>(() => getInitialGameState())
   const [sheet, setSheet] = useState<YamSheet>(initialState.sheet)
   const [isSharedResultView, setIsSharedResultView] = useState(initialState.isSharedResultView)
+  const [diceResetNonce, setDiceResetNonce] = useState(0)
   const [rollResult, setRollResult] = useState<RollResult | null>(null)
   const [hasDiceResult, setHasDiceResult] = useState(false)
   const [pendingPlacement, setPendingPlacement] = useState<Placement | null>(null)
@@ -159,6 +160,7 @@ function App() {
   const restartGame = useCallback(() => {
     setSheet(createEmptySheet())
     setIsSharedResultView(false)
+    setDiceResetNonce((prev) => prev + 1)
     setRollResult(null)
     setHasDiceResult(false)
     setPendingPlacement(null)
@@ -170,6 +172,7 @@ function App() {
   const startFreshGameFromSharedLink = useCallback(() => {
     setSheet(EMPTY_SHEET)
     setIsSharedResultView(false)
+    setDiceResetNonce((prev) => prev + 1)
     setRollResult(null)
     setHasDiceResult(false)
     setPendingPlacement(null)
@@ -254,6 +257,7 @@ function App() {
             <DiceThrowRenderer
               diceCount={5}
               maxAttempts={3}
+              resetNonce={diceResetNonce}
               onDiceResult={handleDiceResult}
               onRollStart={handleRollStart}
               forceSingleAttempt={onlySecoRemaining}

@@ -16,6 +16,7 @@ const HOLD_TO_SLOW_MS = 200
 type DiceThrowProps = {
   diceCount?: number
   maxAttempts?: number
+  resetNonce?: number
   onDiceResult?: (result: { total: number; values: number[]; attempt: number }) => void
   onRollStart?: () => void
   forceSingleAttempt?: boolean
@@ -166,6 +167,7 @@ function profileForMode(mode: RollSpeedMode): RollProfile {
 export function DiceThrowRenderer({
   diceCount = 5,
   maxAttempts = 3,
+  resetNonce = 0,
   onDiceResult,
   onRollStart,
   forceSingleAttempt = false,
@@ -931,6 +933,19 @@ export function DiceThrowRenderer({
       window.removeEventListener("blur", onWindowBlur)
     }
   }, [beginPlayPress, releasePlayPress, resetPlayHoldState])
+
+  useEffect(() => {
+    rollingRef.current = false
+    setIsRolling(false)
+    setAttempt(0)
+    attemptRef.current = 0
+    setResults([])
+    const allUnlocked = Array(diceCount).fill(false)
+    setLocked(allUnlocked)
+    lockedRef.current = allUnlocked
+    resetPlayHoldState()
+    parkDiceRef.current()
+  }, [diceCount, resetNonce, resetPlayHoldState])
 
   return (
     <div className="flex h-full w-full flex-col">
